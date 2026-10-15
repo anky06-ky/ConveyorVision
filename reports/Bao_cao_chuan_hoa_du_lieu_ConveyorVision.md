@@ -48,20 +48,38 @@ Kết quả huấn luyện trên Roboflow Cloud với bộ dữ liệu `bottle_d
 
 ---
 
-## 4. Kế Hoạch Huấn Luyện Pilot (30 Epochs)
+## 4. Kế Hoạch & Kết Quả Huấn Luyện Pilot (3 Epochs Đầu)
 
-- **Số lượng ảnh Train:** 1.692 ảnh
-- **Batch size:** 16 $\rightarrow$ Mỗi epoch có $\lceil 1.692 / 16 \rceil = 106$ bước (iterations).
-- **Tổng số bước sau 30 epochs:** $106 \times 30 = 3.180$ bước cập nhật trọng số.
-- **Phương án đo lường:** Chạy trước 2–3 epochs đầu để đo latency/thời gian trung bình mỗi epoch, từ đó ngoại suy chính xác tổng thời gian hoàn thành 30 epochs trước khi chạy toàn bộ.
+### 4.1. Tiến trình học qua 3 Epochs
+- **Số lượng ảnh Train:** 1.692 ảnh | **Batch size:** 16 (~106 bước/epoch)
+- **Tập Validation:** 533 ảnh (410 ảnh chứa 1.052 box pass, 83 ảnh chứa 99 box defect, 41 ảnh nền rỗng)
+- **Phần cứng thực thi:** CPU Intel Core i7-8565U 1.80GHz
+
+| Epoch | train/box_loss | train/cls_loss | Precision | Recall | mAP@50 | mAP@50-95 | Thời gian |
+|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **1** | 1.450 | 2.808 | 24.2% | 26.4% | 14.4% | 6.9% | 13.2 phút |
+| **2** | 1.456 | 1.895 | 36.1% | 44.5% | 33.0% | 16.9% | 13.8 phút |
+| **3** | **1.387** | **1.626** | **49.5%** | **63.9%** | **54.9%** | **30.0%** | **11.0 phút** |
+
+### 4.2. Đánh giá chi tiết từng lớp trên checkpoint tốt nhất (`best.pt`)
+
+| Lớp (Class) | Số ảnh val | Số bounding box | Precision | Recall | mAP@50 | mAP@50-95 |
+|---|---:|---:|---:|---:|---:|---:|
+| **all (Toàn bộ)** | 533 | 1.151 | **49.3%** | **64.0%** | **55.0%** | **30.1%** |
+| **`pass` (Đạt)** | 410 | 1.052 | **42.7%** | **69.4%** | **59.2%** | **35.9%** |
+| **`defect` (Lỗi)** | 83 | 99 | **55.9%** | **58.6%** | **50.7%** | **24.3%** |
+
+### 4.3. Tốc độ suy luận & Thời gian huấn luyện
+- **Tốc độ suy luận (Inference Latency):** 1.3ms preprocess + 78.3ms inference + 1.6ms postprocess = **81.2 ms/ảnh** (~**12.5 FPS** trên CPU Intel i7-8565U mà không cần GPU rời).
+- **Tổng thời gian chạy 3 epochs:** **43.93 phút** (trung bình ~14.6 phút/epoch).
+- **Ngoại suy thời gian cho 30 epochs trên CPU:** ~**7.32 giờ**.
+- **Checkpoint đã lưu:** [`models/yolov8n_pilot_best.pt`](file:///d:/ConveyorVision/models/yolov8n_pilot_best.pt) (6.5 MB).
 
 ---
 
-## 4. Công Cụ Đã Triển Khai Trong Repo
+## 5. Công Cụ Đã Triển Khai Trong Repo
 
-- **`src/conveyorvision/dataset_manager.py`**:
-  - `--migrate`: Chuẩn hóa dữ liệu cũ vào `data/`.
-  - `--import-dir <path>`: Nhập và remap một thư mục dataset bất kỳ.
-  - `--scan-raw`: Tự động tìm kiếm file ZIP trong `raw_datasets/`, giải nén, remap class và gộp vào `data/`.
-  - `--audit`: Kiểm toán số lượng ảnh và box thời gian thực.
+- **`src/conveyorvision/dataset_manager.py`**: Module tự động hóa nạp, giải nén zip, remap class và audit kiểm toán dữ liệu.
+- **`src/conveyorvision/train_pilot.py`**: Script huấn luyện pilot tích hợp sẵn bộ đếm thời gian và ước lượng tiến độ.
 - **`raw_datasets/`**: Thư mục lưu trữ các bộ dữ liệu gốc đã tải về.
+
