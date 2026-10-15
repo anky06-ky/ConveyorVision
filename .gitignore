@@ -3,9 +3,15 @@ __pycache__/
 *.pyc
 
 raw_videos/
+raw_datasets/
 data/images/
 data/labels/
+train/
+valid/
+test/
 *.pt
+*.exe
+*.zip
 
 .ipynb_checkpoints/
 reports/*.png

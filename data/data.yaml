@@ -1,10 +1,7 @@
-# Chinh "path" thanh duong dan tuyet doi toi thu muc data/ tren may ban,
-# vi du: /home/an/conveyorvision/data
-path: /duong/dan/toi/conveyorvision/data
-
+path: D:/ConveyorVision/data
 train: images/train
 val: images/val
-
+test: images/test
 names:
   0: pass
   1: defect

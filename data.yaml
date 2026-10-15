@@ -1,0 +1,9 @@
+# ConveyorVision — Root Data Configuration (Đồng bộ với data/data.yaml)
+path: D:/ConveyorVision/data
+train: images/train
+val: images/val
+test: images/test
+
+names:
+  0: pass
+  1: defect
