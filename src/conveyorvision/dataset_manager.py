@@ -581,21 +581,28 @@ if __name__ == "__main__":
             print("[LỖI] Vui lòng cung cấp --api-key hoặc thiết lập biến môi trường ROBOFLOW_API_KEY!")
             sys.exit(1)
 
-        # Danh sách dataset mục tiêu cho bài toán ConveyorVision
+        # Danh sách dataset mục tiêu cho bài toán ConveyorVision (đầy đủ 2.666 ảnh)
         target_datasets = [
             {
-                "workspace": "robo-lupdk",
-                "project": "bottle_defects-tpmcq",
+                "workspace": "anky06",
+                "project": "conveyor-belt-eafpe-bgzzm",
                 "version": 1,
-                "prefix": "bottle_defect",
-                "mapping": {"good": 0, "defective": 1}
+                "prefix": "conveyor",
+                "mapping": {"bottle": 0}
             },
             {
                 "workspace": "bayo-et081",
                 "project": "bottle-detection-qti1t",
                 "version": 1,
-                "prefix": "bayo_bottle",
-                "mapping": {"bottle": 0}
+                "prefix": "bayo",
+                "mapping": {"defect": 1, "ok": 0}
+            },
+            {
+                "workspace": "anky06",
+                "project": "bottle_defects-tpmcq-kijtp",
+                "version": 1,
+                "prefix": "bottle_defect",
+                "mapping": {"good": 0, "defective": 1}
             }
         ]
 
