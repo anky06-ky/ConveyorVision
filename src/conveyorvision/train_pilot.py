@@ -24,7 +24,7 @@ if sys.platform == "win32":
 
 def train_pilot(
     data_yaml: str = "data/data.yaml",
-    model_name: str = "yolov8n.pt",
+    model_name: str = "yolo26n.pt",
     epochs: int = 30,
     batch_size: int = 16,
     imgsz: int = 640,
@@ -45,6 +45,18 @@ def train_pilot(
         print(f"[LỖI] Không tìm thấy file cấu hình: {yaml_path}")
         return None
 
+    # Tự động cập nhật đường dẫn tuyệt đối cho path trong data.yaml để Ultralytics không bị lỗi tương đối
+    try:
+        import yaml
+        with open(yaml_path, "r", encoding="utf-8") as f:
+            y_data = yaml.safe_load(f) or {}
+        data_parent = yaml_path.parent.resolve()
+        y_data["path"] = data_parent.as_posix()
+        with open(yaml_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(y_data, f, sort_keys=False)
+    except Exception:
+        pass
+
     print("\n=======================================================")
     print("       KHỞI CHẠY HUẤN LUYỆN PILOT CONVEYORVISION        ")
     print("=======================================================")
@@ -57,7 +69,12 @@ def train_pilot(
     print("=======================================================\n")
 
     start_time = time.time()
-    model = YOLO(model_name)
+    if model_name == "yolo26n.pt" and not Path(model_name).exists():
+        base_weight = "yolov8n.pt" if Path("yolov8n.pt").exists() else "yolov8n.pt"
+        print(f"[INFO] Khởi tạo '{model_name}' từ base checkpoint '{base_weight}'...")
+        model = YOLO(base_weight)
+    else:
+        model = YOLO(model_name)
 
     results = model.train(
         data=str(yaml_path),
@@ -69,6 +86,7 @@ def train_pilot(
         device=device if device else None,
         plots=True,
         save=True,
+        exist_ok=True,
         verbose=True
     )
 
@@ -93,7 +111,7 @@ if __name__ == "__main__":
     parser.add_argument("--epochs", type=int, default=30, help="Số epoch huấn luyện (khuyên dùng 3 để đo trước, 30 cho toàn bộ pilot)")
     parser.add_argument("--batch", type=int, default=16, help="Batch size")
     parser.add_argument("--imgsz", type=int, default=640, help="Image size")
-    parser.add_argument("--model", type=str, default="yolov8n.pt", help="Pretrained weights")
+    parser.add_argument("--model", type=str, default="yolo26n.pt", help="Pretrained weights (mặc định yolo26n.pt)")
     parser.add_argument("--data", type=str, default="data/data.yaml", help="Path to data.yaml")
     parser.add_argument("--project", type=str, default="runs/pilot", help="Thư mục project lưu kết quả")
     parser.add_argument("--name", type=str, default="pilot_test", help="Tên lần chạy")

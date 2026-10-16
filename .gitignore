@@ -1,7 +1,20 @@
+# ==========================================
+# ConveyorVision — Git Ignore Configuration
+# ==========================================
+
+# 1. Môi trường ảo & Cache Python
 .venv/
 __pycache__/
 *.pyc
+*.pyo
+.ipynb_checkpoints/
 
+# 2. File cấu hình nhạy cảm / Secrets
+.env
+.env.*
+*.key
+
+# 3. Dữ liệu hình ảnh & video nặng (Lưu cục bộ, không đẩy lên Git)
 raw_videos/
 raw_datasets/
 data/images/
@@ -9,10 +22,23 @@ data/labels/
 train/
 valid/
 test/
+
+# 4. Mô hình, trọng số & kết quả huấn luyện
 *.pt
+*.onnx
+*.engine
+runs/
+
+# 5. File nén & bộ cài đặt tạm thời
 *.exe
 *.zip
+*.tar
+*.gz
+*.rar
 
-.ipynb_checkpoints/
-reports/*.png
-runs/
+# 6. Cấu hình IDE cá nhân
+.vscode/
+.idea/
+
+# 7. Giữ lại các thư mục rỗng qua .gitkeep
+!*/.gitkeep
