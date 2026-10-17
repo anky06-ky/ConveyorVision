@@ -27,16 +27,27 @@ def test_data_yaml_structure():
 
 
 def test_yolo26_native_architecture():
-    """Verify yolo26n.pt is a native YOLO26 model with end-to-end NMS-free head."""
+    """Verify YOLO26 native architecture (end-to-end NMS-free) can be initialized.
+    Works reliably both locally and on clean git clones (where *.pt weights are excluded by .gitignore).
+    """
     model_path = Path(__file__).resolve().parent.parent / "yolo26n.pt"
-    assert model_path.exists(), "yolo26n.pt must exist in repository root."
+    if model_path.exists():
+        model = YOLO(str(model_path))
+    else:
+        # On clean clone without local *.pt file, verify native YOLO26 architecture definition
+        try:
+            model = YOLO("yolo26n.pt")
+        except Exception:
+            model = YOLO("yolo26n.yaml")
 
-    model = YOLO(str(model_path))
     yaml_config = getattr(model.model, "yaml", {})
     yaml_file = yaml_config.get("yaml_file", "").lower()
     is_end2end = yaml_config.get("end2end", False)
+    reg_max = yaml_config.get("reg_max", None)
 
     assert "yolo26" in yaml_file or is_end2end is True, "Model must be YOLO26 native architecture."
+    assert is_end2end is True, "YOLO26 must feature an end-to-end NMS-free head (end2end: True)."
+    assert reg_max == 1, "YOLO26 end-to-end head must have reg_max=1."
 
 
 def test_dataset_manager_raw_prefix_and_mapping():

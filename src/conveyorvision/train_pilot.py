@@ -30,7 +30,9 @@ def train_pilot(
     imgsz: int = 640,
     project: str = "runs/pilot",
     name: str = "pilot_run",
-    device: str = ""
+    device: str = "",
+    cls: float = 1.2,
+    fl_gamma: float = 1.5
 ):
     try:
         from ultralytics import YOLO
@@ -83,7 +85,9 @@ def train_pilot(
         plots=True,
         save=True,
         exist_ok=True,
-        verbose=True
+        verbose=True,
+        cls=cls,
+        fl_gamma=fl_gamma
     )
 
     elapsed = time.time() - start_time
@@ -112,6 +116,8 @@ if __name__ == "__main__":
     parser.add_argument("--project", type=str, default="runs/pilot", help="Thư mục project lưu kết quả")
     parser.add_argument("--name", type=str, default="pilot_test", help="Tên lần chạy")
     parser.add_argument("--device", type=str, default="", help="Device: 0 (GPU), cpu, etc.")
+    parser.add_argument("--cls", type=float, default=1.2, help="Trọng số loss classification cho class defect (mặc định 1.2)")
+    parser.add_argument("--fl-gamma", type=float, default=1.5, help="Tham số gamma cho Focal Loss (mặc định 1.5)")
 
     args = parser.parse_args()
     res = train_pilot(
@@ -122,7 +128,9 @@ if __name__ == "__main__":
         imgsz=args.imgsz,
         project=args.project,
         name=args.name,
-        device=args.device
+        device=args.device,
+        cls=args.cls,
+        fl_gamma=args.fl_gamma
     )
     if res is None:
         sys.exit(1)
