@@ -10,6 +10,7 @@ if str(src_dir) not in sys.path:
 
 from conveyorvision.dataset_manager import resolve_raw_prefix_and_mapping, normalize_split_name
 from ultralytics import YOLO
+from ultralytics.cfg import get_cfg, DEFAULT_CFG_PATH
 
 
 def test_data_yaml_structure():
@@ -71,3 +72,34 @@ def test_normalize_split_name():
     assert normalize_split_name("train") == "train"
     assert normalize_split_name("training") == "train"
     assert normalize_split_name("unknown") == "unknown"
+
+
+def test_training_arguments_compatibility():
+    """Verify that all training arguments used in train_pilot and notebook are valid Ultralytics arguments.
+    Ensures invalid parameters (such as fl_gamma which was deprecated/removed in YOLO26/v8) are strictly caught.
+    """
+    training_overrides = {
+        "data": "data/data.yaml",
+        "epochs": 30,
+        "batch": 16,
+        "imgsz": 640,
+        "project": "runs/pilot",
+        "name": "pilot_test",
+        "device": None,
+        "plots": True,
+        "save": True,
+        "exist_ok": True,
+        "verbose": True,
+        "cls": 1.2
+    }
+
+    # Ultralytics get_cfg validates arguments against default.yaml.
+    # If any invalid argument is passed, it raises SyntaxError.
+    cfg = get_cfg(DEFAULT_CFG_PATH, training_overrides)
+    assert cfg.cls == 1.2
+    assert cfg.epochs == 30
+    assert cfg.imgsz == 640
+
+    # Ensure passing fl_gamma explicitly raises SyntaxError in Ultralytics
+    with pytest.raises(SyntaxError):
+        get_cfg(DEFAULT_CFG_PATH, {"fl_gamma": 1.5})
