@@ -317,7 +317,17 @@ def import_dataset_from_dir(
                 c_img = source_dir / "images" / candidate
                 if c_img.is_dir():
                     found_splits.append((candidate, source_dir))
-                    break
+
+    # Xây dựng danh sách ảnh hiện có trong data/ để tránh nhân đôi dữ liệu khi import lại
+    existing_file_names = set()
+    for s in ["train", "val", "test"]:
+        s_img_dir = data_dir / "images" / s
+        if s_img_dir.exists():
+            for p in s_img_dir.iterdir():
+                existing_file_names.add(p.name)
+                for pfx in ["conveyor_", "bayo_", "bottle_defect_", "bayo_bottle_", "bottle_defects_"]:
+                    if p.name.startswith(pfx):
+                        existing_file_names.add(p.name[len(pfx):])
 
     auto_partition = (len(found_splits) == 1 and found_splits[0][0].lower() in ["train", "training"])
     if auto_partition:
@@ -343,6 +353,10 @@ def import_dataset_from_dir(
         num_images = len(images)
 
         for idx, img_path in enumerate(images):
+            # Tránh nhân đôi dữ liệu nếu ảnh đã tồn tại trong data/
+            if img_path.name in existing_file_names or f"{dataset_prefix}_{img_path.name}" in existing_file_names:
+                continue
+
             if auto_partition:
                 if idx < int(0.70 * num_images):
                     target_split = "train"
@@ -367,6 +381,8 @@ def import_dataset_from_dir(
             dest_lbl = data_dir / "labels" / target_split / dest_lbl_name
 
             boxes = remap_and_copy_file(img_path, lbl_path, dest_img, dest_lbl, id_to_target_cls)
+            existing_file_names.add(dest_name)
+            existing_file_names.add(img_path.name)
             
             if target_split not in stats["splits"]:
                 stats["splits"][target_split] = {"images": 0, "boxes": 0}
@@ -517,6 +533,18 @@ def extract_and_import_zip(
     return import_dataset_from_dir(extract_to, project_root, dataset_prefix, explicit_class_map)
 
 
+def resolve_raw_prefix_and_mapping(folder_name: str) -> Tuple[str, Optional[Dict[str, int]]]:
+    """Ánh xạ tên thư mục raw về tiền tố và class mapping chuẩn để tránh lệch tiền tố và nhân đôi ảnh."""
+    name = folder_name.lower()
+    if "bayo" in name or "bottle-detection" in name:
+        return "bayo", {"defect": 1, "ok": 0}
+    if "defect" in name or "defective" in name:
+        return "bottle_defect", {"good": 0, "defective": 1}
+    if "conveyor" in name:
+        return "conveyor", {"bottle": 0}
+    return folder_name.replace(" ", "_").lower(), None
+
+
 def scan_and_import_raw(project_root: Path) -> int:
     """Tự động quét thư mục raw_datasets/ tìm các file zip hoặc thư mục con để nhập."""
     raw_dir = project_root / "raw_datasets"
@@ -528,15 +556,15 @@ def scan_and_import_raw(project_root: Path) -> int:
     count = 0
     # 1. Quét các file ZIP
     for zip_f in raw_dir.glob("*.zip"):
-        prefix = zip_f.stem.replace(" ", "_").lower()
-        extract_and_import_zip(zip_f, project_root, prefix)
+        prefix, class_map = resolve_raw_prefix_and_mapping(zip_f.stem)
+        extract_and_import_zip(zip_f, project_root, prefix, class_map)
         count += 1
 
     # 2. Quét các thư mục con
     for sub in raw_dir.iterdir():
         if sub.is_dir() and not sub.name.startswith("."):
-            prefix = sub.name.replace(" ", "_").lower()
-            import_dataset_from_dir(sub, project_root, prefix)
+            prefix, class_map = resolve_raw_prefix_and_mapping(sub.name)
+            import_dataset_from_dir(sub, project_root, prefix, class_map)
             count += 1
 
     return count
@@ -607,10 +635,21 @@ if __name__ == "__main__":
         ]
 
         raw_dir = proj_root / "raw_datasets"
+        download_errors = 0
         for ds in target_datasets:
             loc = download_from_roboflow(api_key, ds["workspace"], ds["project"], ds["version"], raw_dir)
             if loc and loc.exists():
                 import_dataset_from_dir(loc, proj_root, ds["prefix"], ds["mapping"])
+            else:
+                download_errors += 1
+                print(f"[LỖI] Tải dataset '{ds['workspace']}/{ds['project']}' thất bại!")
+
+        if download_errors > 0:
+            print(f"\n[LỖI NGHIÊM TRỌNG] Có {download_errors}/{len(target_datasets)} dataset tải không thành công.")
+            sys.exit(1)
 
     # Luôn kiểm toán dữ liệu
-    audit_dataset(proj_root)
+    report = audit_dataset(proj_root)
+    if report["total_images"] == 0:
+        print("[LỖI] Thư mục data/images không có dữ liệu ảnh hợp lệ.")
+        sys.exit(1)

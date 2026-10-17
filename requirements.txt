@@ -1,14 +1,15 @@
-ultralytics==8.3.70
-opencv-python==4.10.0.84
-roboflow==1.1.53
-matplotlib==3.9.2
+ultralytics==8.4.175
+opencv-python==5.0.0.93
+roboflow==1.7.1
+matplotlib==3.11.2
 seaborn==0.13.2
 pandas==2.2.3
-pyyaml==6.0.2
-fastapi==0.115.6
-uvicorn==0.32.1
-python-multipart==0.0.20
-jinja2==3.1.5
+pyyaml==6.0.3
+fastapi==0.143.0
+uvicorn==0.54.0
+python-multipart==0.0.32
+jinja2==3.1.6
 pytest==8.3.4
+
 
 

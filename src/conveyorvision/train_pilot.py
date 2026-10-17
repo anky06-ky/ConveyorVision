@@ -69,12 +69,8 @@ def train_pilot(
     print("=======================================================\n")
 
     start_time = time.time()
-    if model_name == "yolo26n.pt" and not Path(model_name).exists():
-        base_weight = "yolov8n.pt" if Path("yolov8n.pt").exists() else "yolov8n.pt"
-        print(f"[INFO] Khởi tạo '{model_name}' từ base checkpoint '{base_weight}'...")
-        model = YOLO(base_weight)
-    else:
-        model = YOLO(model_name)
+    print(f"[INFO] Khởi tạo mô hình YOLO26: {model_name}...")
+    model = YOLO(model_name)
 
     results = model.train(
         data=str(yaml_path),
@@ -118,7 +114,7 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default="", help="Device: 0 (GPU), cpu, etc.")
 
     args = parser.parse_args()
-    train_pilot(
+    res = train_pilot(
         data_yaml=args.data,
         model_name=args.model,
         epochs=args.epochs,
@@ -128,3 +124,5 @@ if __name__ == "__main__":
         name=args.name,
         device=args.device
     )
+    if res is None:
+        sys.exit(1)
