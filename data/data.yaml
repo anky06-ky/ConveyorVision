@@ -1,6 +1,6 @@
 # ConveyorVision — Cấu hình Dataset YOLO (0: pass, 1: defect)
-# Lưu ý: Script train_pilot.py và Notebook sẽ tự động gán path thành đường dẫn tuyệt đối chuẩn xác khi chạy.
-path: .
+# Lưu ý: Khi chạy qua evaluate.py, train_pilot.py hoặc Notebook, path sẽ tự động cập nhật tuyệt đối theo máy hiện tại.
+path: data
 train: images/train
 val: images/val
 test: images/test
@@ -8,4 +8,3 @@ test: images/test
 names:
   0: pass
   1: defect
-

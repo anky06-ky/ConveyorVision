@@ -34,19 +34,44 @@ def evaluate_model(
 
     model_file = Path(model_path).resolve()
     if not model_file.exists():
-        # Tìm các vị trí thay thế
-        fallback = Path("runs/train/conveyor_yolo26_30/weights/best.pt").resolve()
-        if fallback.exists():
-            print(f"[INFO] Không tìm thấy {model_file}, sử dụng checkpoint: {fallback}")
-            model_file = fallback
+        candidate_fallbacks = [
+            Path("models/conveyor_yolo26_30ep_best.pt").resolve(),
+            Path("runs/train/conveyor_yolo26_30/weights/best.pt").resolve(),
+            Path("runs/detect/runs/train/conveyor_yolo26_30/weights/best.pt").resolve(),
+            Path("runs/train/conveyor_yolo26_30/weights/last.pt").resolve(),
+            Path("runs/detect/runs/train/conveyor_yolo26_30/weights/last.pt").resolve(),
+            Path("weights/best.pt").resolve()
+        ]
+        found_fallback = next((p for p in candidate_fallbacks if p.exists()), None)
+        if found_fallback:
+            print(f"[INFO] Không tìm thấy {model_file}, sử dụng checkpoint: {found_fallback}")
+            model_file = found_fallback
         else:
             print(f"[LỖI] Không tìm thấy file trọng số: {model_file}")
+            print("💡 Gợi ý: File trọng số (*.pt) không được lưu trên Git theo .gitignore.")
+            print("   Bạn có thể tạo trọng số bằng cách:")
+            print("     1. Chạy notebook notebooks/ConveyorVision_YOLO_Training.ipynb trên Google Colab GPU (~7.7 phút)")
+            print("     2. Hoặc chạy CLI: python src/conveyorvision/train_pilot.py --epochs 30")
+            print("     3. Hoặc tải file weights về và đặt vào models/conveyor_yolo26_30ep_best.pt")
             return None
 
     yaml_file = Path(data_yaml).resolve()
     if not yaml_file.exists():
         print(f"[LỖI] Không tìm thấy file dataset: {yaml_file}")
         return None
+
+    # Tự động đồng bộ path tuyệt đối trong data.yaml
+    try:
+        import yaml
+        with open(yaml_file, "r", encoding="utf-8") as f:
+            y_data = yaml.safe_load(f) or {}
+        data_parent = yaml_file.parent.resolve()
+        if y_data.get("path") != data_parent.as_posix():
+            y_data["path"] = data_parent.as_posix()
+            with open(yaml_file, "w", encoding="utf-8") as f:
+                yaml.safe_dump(y_data, f, sort_keys=False)
+    except Exception:
+        pass
 
     print("\n" + "=" * 65)
     print("      ĐÁNH GIÁ ĐỘC LẬP MÔ HÌNH CONVEYORVISION (YOLO26)")
@@ -108,3 +133,4 @@ if __name__ == "__main__":
     )
     if res is None:
         sys.exit(1)
+

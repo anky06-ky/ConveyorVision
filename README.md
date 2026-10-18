@@ -117,14 +117,27 @@ python src/conveyorvision/inference_conveyor.py --source raw_videos/sample.mp4 -
 python src/conveyorvision/inference_conveyor.py --source 0 --model models/conveyor_yolo26_30ep_best.pt
 ```
 
-## 📊 Kết Quả Huấn Luyện 30 Epochs (Pilot Benchmark)
+## 📊 Kết Quả Huấn Luyện & Đánh Giá Thực Nghiệm (Benchmark)
 
-Mô hình **YOLO26 Nano** sau 30 epochs huấn luyện trên NVIDIA T4 GPU (Google Colab, thời gian chạy: **7.7 phút**):
-- **mAP@50**: **82.0%**
-- **mAP@50-95**: **58.0%**
-- **Precision**: **78.7%**
-- **Recall**: **79.3%**
-- Chi tiết biểu đồ Loss curves, Confusion Matrix và PR curve xem tại: [`doc/evaluation/README.md`](doc/evaluation/README.md)
+Mô hình **YOLO26 Nano** được huấn luyện 30 epochs trên Google Colab GPU (NVIDIA L4/T4, thời gian chạy: **7.7 phút**):
+
+| Tập dữ liệu | Quy mô | Precision | Recall | mAP@50 | mAP@50-95 |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Validation** | 533 ảnh | 78.7% | 79.3% | 82.0% | 58.0% |
+| **Test (Độc lập)** | 441 ảnh | **78.2%** | **75.7%** | **82.5%** | **61.4%** |
+| → Riêng lớp `defect` (Test) | 41 box | 76.6% | **85.4%** | **86.2%** | **71.7%** |
+
+* **Tốc độ đo thực tế (Empirical):** Đạt **125.9 ms/ảnh (~7.9 FPS)** trên Intel Core i7-8565U CPU (môi trường laptop văn phòng không GPU). Tốc độ dự kiến **>80 FPS** trên GPU công nghiệp (NVIDIA T4 / RTX).
+* Chi tiết báo cáo và biểu đồ xem tại: [`doc/evaluation/README.md`](doc/evaluation/README.md).
+
+## 📥 Hướng Dẫn Về Trọng Số Mô Hình (.pt)
+
+Theo tiêu chuẩn quản lý mã nguồn Git và cấu hình [`.gitignore`](.gitignore), các file trọng số nhị phân nặng (`*.pt`) **không được lưu trực tiếp trên Git**.
+
+Để có file trọng số `models/conveyor_yolo26_30ep_best.pt` khi clone mới repository:
+1. **Cách 1 (Khuyên dùng - Tự huấn luyện lại):** Mở notebook `notebooks/ConveyorVision_YOLO_Training.ipynb` trên Google Colab GPU và bấm chạy toàn bộ. Mô hình sẽ hoàn thành huấn luyện 30 epochs sau **~7.7 phút** và xuất file `best.pt`.
+2. **Cách 2 (Sử dụng CLI):** Chạy lệnh `python src/conveyorvision/train_pilot.py --epochs 30 --batch 16`.
+3. **Cách 3 (Tải trực tiếp):** Tải file trọng số `conveyor_yolo26_30ep_best.pt` từ mục **Releases** của GitHub repository và đặt vào thư mục `models/`.
 
 
 

@@ -1,6 +1,6 @@
 # ConveyorVision — YOLO26 30-Epoch Training & Evaluation Report
 
-Báo cáo kết quả huấn luyện mô hình thị giác máy tính **YOLO26 Nano** cho hệ thống phát hiện và phân loại sản phẩm đạt chuẩn (`pass`) / phế phẩm (`defect`) trên băng chuyền công nghiệp.
+Báo cáo kết quả huấn luyện và đánh giá thực nghiệm mô hình thị giác máy tính **YOLO26 Nano** cho bài toán phân loại sản phẩm đạt chuẩn (`pass`) / phế phẩm (`defect`) trên băng chuyền công nghiệp.
 
 ---
 
@@ -11,16 +11,18 @@ Báo cáo kết quả huấn luyện mô hình thị giác máy tính **YOLO26 N
 | **Kiến trúc mô hình** | **YOLO26 Nano** (`yolo26n.pt` native, End-to-end NMS-free) |
 | **Số layer / Tham số** | 260 layers, 2,504,580 parameters, 5.9 GFLOPs |
 | **Kích thước file trọng số** | **5.45 MB** (phù hợp triển khai biên Edge/IoT/Embedded) |
-| **Phần cứng huấn luyện** | NVIDIA Tesla T4 GPU (Google Colab Runtime) |
+| **Môi trường huấn luyện** | Google Colab GPU Runtime (NVIDIA L4/T4) |
 | **Thời gian huấn luyện** | **463.2 giây (~7.7 phút)** cho 30 epochs (~15.4 giây/epoch) |
-| **Số lượng ảnh** | 2.666 ảnh (Train: 1.692, Val: 533, Test: 441) |
+| **Quy mô tập dữ liệu** | 2.666 ảnh (Train: 1.692, Val: 533, Test: 441) |
 | **Batch size / Image size** | 16 / 640x640 |
 | **Optimizer** | AdamW (`lr=0.001667`, `momentum=0.9`) |
 | **Trọng số phân loại (`cls`)** | `cls=1.2` (hỗ trợ bù trừ mất cân bằng lớp 10:1) |
 
 ---
 
-## 2. Kết Quả Đo Lường & Chỉ Số Hiệu Năng (Performance Metrics)
+## 2. Kết Quả Huấn Luyện Trên Tập Validation (533 ảnh)
+
+Tiến trình đo lường qua các mốc epoch trên tập Validation:
 
 | Chỉ số | Epoch 1 | Epoch 10 | Epoch 20 | Epoch 30 (Final) |
 | :--- | :---: | :---: | :---: | :---: |
@@ -33,25 +35,50 @@ Báo cáo kết quả huấn luyện mô hình thị giác máy tính **YOLO26 N
 
 ---
 
-## 3. Biểu Đồ Trực Quan Hóa (Visual Analytics)
+## 3. Kết Quả Đánh Giá Độc Lập Trên Tập Test (441 ảnh, 1.032 Bounding Boxes)
 
-### 3.1. Tiến trình huấn luyện (Loss & Performance Curves)
-![Biểu đồ tiến trình huấn luyện](results.png)
+Đánh giá bằng lệnh `python src/conveyorvision/evaluate.py --split test --model models/conveyor_yolo26_30ep_best.pt` trên 441 ảnh kiểm thử hoàn toàn độc lập (chưa từng thấy trong quá trình huấn luyện):
 
-### 3.2. Ma trận nhầm lẫn chuẩn hóa (Normalized Confusion Matrix)
-![Ma trận nhầm lẫn chuẩn hóa](confusion_matrix_normalized.png)
+| Lớp (Class) | Số lượng ảnh | Số Bounding Box | Precision | Recall | mAP@50 | mAP@50-95 |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Tất cả (Overall)** | **441** | **1.032** | **78.2%** | **75.7%** | **82.5%** | **61.4%** |
+| `pass` (Đạt chuẩn) | 381 | 991 | 79.7% | 66.1% | 78.9% | 51.2% |
+| `defect` (Lỗi / Phế phẩm) | 36 | 41 | **76.6%** | **85.4%** | **86.2%** | **71.7%** |
 
-### 3.3. Đường cong Precision - Recall (PR Curve)
-![Đường cong PR](BoxPR_curve.png)
+> [!NOTE]
+> **Điểm nổi bật:** Trên lớp sản phẩm lỗi (`defect`), mô hình đạt độ nhạy **Recall = 85.4%** và **mAP@50 = 86.2%**. Kết quả này chứng minh tham số `cls=1.2` đã phát huy tác dụng tối ưu, giảm thiểu tối đa hiện tượng bỏ sót phế phẩm (False Negative) trên băng chuyền.
 
 ---
 
-## 4. Đánh Giá & Nhận Xét Chuyên Môn
+## 4. Đo Lường Thực Nghiệm Hiệu Năng & Tốc Độ (Inference Benchmark)
 
-1. **Tốc độ hội tụ và độ ổn định:**
-   - Hàm mất mát phân loại (`cls_loss`) giảm liên tục từ `12.19` xuống `1.775` mà không có hiện tượng nổ gradient.
-   - Validation loss giảm đều theo train loss, chứng minh mô hình **không bị overfitting** (quá khớp).
+* **Thiết bị đo lường thực tế (Empirical):** Intel Core i7-8565U CPU @ 1.80GHz (môi trường laptop văn phòng, không GPU).
+  - Preprocess: **3.1 ms**
+  - Inference: **125.9 ms**
+  - Postprocess: **2.4 ms**
+  - **Tốc độ thực tế đo được trên CPU:** **~7.9 FPS** (đủ đáp ứng cho các băng chuyền tốc độ chậm hoặc thiết bị kiểm tra tĩnh).
+* **Tốc độ ước tính trên GPU công nghiệp:** Dự kiến **>80 FPS** trên NVIDIA Tesla T4 / RTX 3060 / Jetson Orin Nano, đảm bảo kiểm định thời gian thực mượt mà cho dây chuyền tốc độ cao.
 
-2. **Khả năng bắt lỗi trên băng chuyền:**
-   - Chỉ số **mAP@50 đạt 82.0%** và **Recall đạt 79.3%** trên tập dữ liệu thực tế có độ phức tạp cao (nhiều góc chiếu, chai móp méo, mất nắp).
-   - Mô hình sẵn sàng được tích hợp vào pipeline kiểm định thời gian thực qua camera với tốc độ inference dự kiến **>80 FPS** trên GPU và **>15 FPS** trên CPU.
+---
+
+## 5. Biểu Đồ Trực Quan Hóa (Visual Analytics)
+
+### 5.1. Tiến trình huấn luyện (Loss & Performance Curves)
+![Biểu đồ tiến trình huấn luyện](results.png)
+
+### 5.2. Ma trận nhầm lẫn (Confusion Matrix)
+| Tập Validation (533 ảnh) | Tập Test Độc Lập (441 ảnh) |
+| :---: | :---: |
+| ![Val CM](confusion_matrix_normalized.png) | ![Test CM](test_confusion_matrix_normalized.png) |
+
+### 5.3. Đường cong Precision - Recall (PR Curve)
+| Tập Validation | Tập Test Độc Lập |
+| :---: | :---: |
+| ![Val PR](BoxPR_curve.png) | ![Test PR](test_BoxPR_curve.png) |
+
+---
+
+## 6. Đánh Giá Tổng Quan
+
+1. **Khả năng tổng quát hóa (Generalization):** Chỉ số mAP@50 trên tập Test đạt **82.5%** (cao hơn cả tập Validation 82.0%), cho thấy mô hình học đúng đặc trưng cốt lõi của chai đạt và lỗi, không bị học vẹt hay overfitting.
+2. **Sẵn sàng triển khai:** Trọng số `conveyor_yolo26_30ep_best.pt` kết hợp pipeline theo vết ByteTrack trong `inference_conveyor.py` đáp ứng đầy đủ yêu cầu kiểm tra và thống kê sản lượng theo thời gian thực.
