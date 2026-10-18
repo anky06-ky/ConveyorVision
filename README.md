@@ -105,12 +105,29 @@ python src/conveyorvision/evaluate.py --split test --model models/conveyor_yolo2
 python src/conveyorvision/evaluate.py --split val --model models/conveyor_yolo26_30ep_best.pt
 ```
 
-## Bước 6 — Kiểm định & đếm sản phẩm băng chuyền thời gian thực (Real-time Inspection)
+## Bước 6 — Khởi chạy Giao diện Dashboard Trực Quan (Web GUI) & CLI
 
+### Cách 1: Giao diện Web Dashboard Trực quan (Khuyên dùng)
+Hệ thống cung cấp giao diện Web Dashboard hoàn chỉnh (FastAPI + WebSocket + Dark Industrial Theme) hỗ trợ 6 màn hình chức năng:
+* **Tổng quan (Overview):** Giám sát trạng thái trạm, tổng sản phẩm đã kiểm định, tỷ lệ lỗi và thao tác nhanh.
+* **Kiểm định trực tiếp (Live Inspection):** Giám sát video MJPEG stream thời gian thực, cơ chế Multi-frame Voting, HUD overlay, còi âm thanh cảnh báo phế phẩm (Web Audio API), và bảng nhật ký sản phẩm cập nhật tại chỗ (*In-place update* tránh đếm trùng).
+* **Lịch sử kiểm định (History):** Xem lại chi tiết từng chai và tải báo cáo log CSV.
+* **Đánh giá mô hình (Evaluation):** Bảng chỉ số chi tiết từng lớp (`pass`, `defect`), cảnh báo rủi ro dữ liệu cận trùng (near-duplicate) và xem các biểu đồ phân tích.
+* **Dữ liệu & Mô hình (Dataset & Models):** Quản lý phân bổ tập dữ liệu và các checkpoint trọng số.
+* **Cài đặt (Settings):** Tùy chỉnh tham số thuật toán tracking, lost buffer tolerance và cảnh báo.
+
+Khởi chạy server giao diện:
+```bash
+python run_app.py
+# Hoặc tùy biến cổng: python run_app.py --port 8080 --host 0.0.0.0
+```
+Truy cập ngay trên trình duyệt tại: **`http://localhost:8000`**
+
+### Cách 2: Chạy kiểm định qua dòng lệnh CLI
 Pipeline theo vết (Object Tracking với ByteTrack), cơ chế **Multi-frame Voting** chống phán đoán vội ở mép khung hình, đếm chính xác sản phẩm không bị trùng lặp, cảnh báo phế phẩm và xuất log CSV:
 ```bash
 # Chạy trên file video băng chuyền với tracker ByteTrack
-python src/conveyorvision/inference_conveyor.py --source raw_videos/sample.mp4 --model models/conveyor_yolo26_30ep_best.pt --tracker bytetrack.yaml
+python src/conveyorvision/inference_conveyor.py --source raw_videos/conveyor_demo.mp4 --model models/conveyor_yolo26_30ep_best.pt --tracker bytetrack.yaml
 
 # Chạy trực tiếp từ camera / webcam
 python src/conveyorvision/inference_conveyor.py --source 0 --model models/conveyor_yolo26_30ep_best.pt

@@ -17,6 +17,7 @@ __pycache__/
 # 3. Dữ liệu hình ảnh & video nặng (Lưu cục bộ, không đẩy lên Git)
 raw_videos/
 raw_datasets/
+reports/snapshots/
 data/images/
 data/labels/
 train/
