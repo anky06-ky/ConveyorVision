@@ -132,3 +132,17 @@ def test_data_yaml_not_overwritten():
     assert "path: data" in content
 
 
+def test_resolve_track_buffer():
+    """Verify resolve_track_buffer dynamically extracts track_buffer from tracker YAML."""
+    from conveyorvision.inference_conveyor import resolve_track_buffer
+
+    tb = resolve_track_buffer("bytetrack.yaml")
+    assert isinstance(tb, int)
+    assert tb == 30
+
+    # Fallback to 30 on unknown or non-existent file
+    fallback_tb = resolve_track_buffer("non_existent_tracker.yaml")
+    assert fallback_tb == 30
+
+
+

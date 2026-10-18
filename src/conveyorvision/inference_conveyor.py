@@ -31,6 +31,27 @@ if sys.platform == "win32":
         pass
 
 
+def resolve_track_buffer(tracker_config: str) -> int:
+    """Trích xuất tham số track_buffer từ file cấu hình tracker YAML để đồng bộ chuẩn xác ngưỡng mất dấu."""
+    try:
+        import yaml
+        tracker_path = Path(tracker_config)
+        if not tracker_path.exists():
+            import ultralytics
+            ultralytics_root = Path(ultralytics.__file__).resolve().parent
+            candidate = ultralytics_root / "cfg" / "trackers" / tracker_config
+            if candidate.exists():
+                tracker_path = candidate
+        if tracker_path.exists():
+            with open(tracker_path, "r", encoding="utf-8") as f:
+                cfg = yaml.safe_load(f) or {}
+            if "track_buffer" in cfg:
+                return int(cfg["track_buffer"])
+    except Exception:
+        pass
+    return 30
+
+
 def run_conveyor_inspection(
     source: str = "0",
     model_path: str = "models/conveyor_yolo26_30ep_best.pt",
@@ -111,6 +132,8 @@ def run_conveyor_inspection(
         csv_writer = csv.writer(csv_file)
         csv_writer.writerow(["timestamp_s", "track_id", "class_id", "class_name", "confidence", "status"])
 
+    track_buffer = resolve_track_buffer(tracker_config)
+
     # Khởi tạo biến quản lý vòng đời tracking (Track Lifecycle & Multi-frame Voting)
     track_history = {}
     total_pass = 0
@@ -124,7 +147,7 @@ def run_conveyor_inspection(
     print("      HỆ THỐNG KIỂM ĐỊNH BĂNG CHUYỀN THỜI GIAN THỰC ĐANG CHẠY")
     print("=" * 65)
     print(f"  * Nguồn video:   {source}")
-    print(f"  * Tracker:       {tracker_config} (ByteTrack)")
+    print(f"  * Tracker:       {tracker_config} (track_buffer={track_buffer})")
     print(f"  * Độ tự tin:     {conf_thresh}")
     print("  * Bấm phím 'q' trên cửa sổ video để dừng kiểm tra.")
     print("=" * 65 + "\n")
@@ -224,10 +247,10 @@ def run_conveyor_inspection(
                     cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
                     cv2.putText(frame, label, (x1, max(20, y1 - 8)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
-            # Cập nhật kết thúc kiểm tra cho các chai đã rời khỏi góc nhìn camera (lost >= 30 frames khớp track_buffer ByteTrack)
+            # Cập nhật kết thúc kiểm tra cho các chai đã rời khỏi góc nhìn camera (lost >= track_buffer frames)
             for tid, th in track_history.items():
                 if not th["logged"] and th["state"] == "INSPECTING":
-                    if (frame_idx - th["last_seen_frame"]) >= 30:
+                    if (frame_idx - th["last_seen_frame"]) >= track_buffer:
                         total_obs = th["pass_votes"] + th["defect_votes"]
                         if total_obs >= 3:
                             # Đã quan sát đủ frame và không có lỗi -> Xác nhận ĐẠT CHUẨN (PASS)
@@ -251,7 +274,7 @@ def run_conveyor_inspection(
             # - inspecting_count: Số chai đang di chuyển trên băng chuyền chưa kết thúc kiểm tra
             total_pass = sum(1 for th in track_history.values() if th["state"] == "PASS")
             total_defect = sum(1 for th in track_history.values() if th["state"] == "DEFECT")
-            inspecting_count = sum(1 for th in track_history.values() if th["state"] == "INSPECTING" and (frame_idx - th["last_seen_frame"]) < 30)
+            inspecting_count = sum(1 for th in track_history.values() if th["state"] == "INSPECTING" and (frame_idx - th["last_seen_frame"]) < track_buffer)
             total_finalized = total_pass + total_defect
             defect_rate = (total_defect / total_finalized * 100) if total_finalized > 0 else 0.0
 

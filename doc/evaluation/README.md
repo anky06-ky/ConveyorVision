@@ -97,7 +97,8 @@ Trong bài toán thị giác công nghiệp, hiện tượng **"học tốt trê
 
 ### 6.2. Giải pháp kỹ thuật đã triển khai & Khuyến nghị tiếp theo
 * **Cơ chế Multi-frame Voting:** Đã được tích hợp trực tiếp vào `src/conveyorvision/inference_conveyor.py`. Thay vì phán quyết ngay ở frame đầu tiên (dễ nhầm do góc nghiêng hoặc mép ảnh), hệ thống tích lũy lịch sử nhận diện của từng Track ID qua ByteTrack. Chai chỉ được kết luận `DEFECT` khi có $\ge 2$ frame phát hiện lỗi hoặc 1 frame lỗi có độ tự tin cao ($\ge \max(0.5, \text{conf\_thresh})$).
-* **Kế hoạch kiểm định hiện trường:**
-  1. Thu thập 100–200 ảnh hoặc video clip trực tiếp tại vị trí lắp đặt camera thực tế.
-  2. Thực hiện Fine-tuning (Domain Adaptation) 5–10 epochs trên ảnh hiện trường trước khi vận hành tự động cơ cấu gạt/đẩy phế phẩm.
-  3. Đo đạc benchmark FPS trực tiếp trên phần cứng nhúng biên công nghiệp (Edge AI box).
+* **Kế hoạch kiểm định hiện trường & Nghiệm thu:**
+  1. **Tái phân tập kiểm thử theo phiên quay (Session-based Test Split):** Trước khi tiến hành nghiệm thu độ chính xác kỹ thuật chính thức, phân tách toàn bộ dữ liệu kiểm thử theo từng video clip / phiên quay vật lý riêng biệt (thay vì phân chia ngẫu nhiên từng frame của Roboflow) để loại bỏ hoàn toàn các cặp ảnh cận trùng và đo đạc độ chính xác độc lập thực sự.
+  2. Thu thập 100–200 ảnh hoặc video clip trực tiếp tại vị trí lắp đặt camera thực tế.
+  3. Thực hiện Fine-tuning (Domain Adaptation) 5–10 epochs trên ảnh hiện trường trước khi vận hành tự động cơ cấu gạt/đẩy phế phẩm.
+  4. Đo đạc benchmark FPS trực tiếp trên phần cứng nhúng biên công nghiệp (Edge AI box).
