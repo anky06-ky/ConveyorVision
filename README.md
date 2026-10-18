@@ -70,8 +70,7 @@ python src/conveyorvision/dataset_manager.py --download-all
 
 ## Bước 3 — Khai báo data/data.yaml
 
-Dự án chỉ lưu một file cấu hình duy nhất tại `data/data.yaml` (bản trùng ở root đã được loại bỏ).
-Lưu ý: thuộc tính `path` trong `data/data.yaml` cần là đường dẫn tuyệt đối tới thư mục `data/` trên máy của bạn (tránh lỗi Ultralytics resolve sai sang thư mục mặc định của hệ thống). Khi chạy qua `train_pilot.py` hoặc Notebook, script sẽ tự động sinh và cập nhật đường dẫn tuyệt đối này.
+Dự án quản lý cấu hình tập dữ liệu tại `data/data.yaml` với `path: data` tương đối chuẩn Git. Khi chạy qua `evaluate.py`, `train_pilot.py` hoặc Notebook, hệ thống tự động sinh cấu hình runtime cô lập (`runs/runtime_data.yaml`) chứa đường dẫn tuyệt đối cho Ultralytics xử lý mà không làm thay đổi file `data.yaml` trong kho Git.
 
 ## Bước 4 — Huấn luyện mô hình (Training)
 
@@ -95,9 +94,9 @@ model.train(data='data/data.yaml', epochs=30, imgsz=640, project='runs/train', n
 "
 ```
 
-## Bước 5 — Đánh giá độc lập mô hình (Model Evaluation)
+## Bước 5 — Đánh giá mô hình trên phân tập kiểm thử (Model Evaluation)
 
-Đánh giá độ chính xác trên tập `test` (441 ảnh độc lập) hoặc `val`:
+Đánh giá độ chính xác trên phân tập `test` (441 ảnh) hoặc `val`:
 ```bash
 # Đánh giá trên tập test với model tốt nhất
 python src/conveyorvision/evaluate.py --split test --model models/conveyor_yolo26_30ep_best.pt
@@ -128,7 +127,7 @@ Mô hình **YOLO26 Nano** được huấn luyện 30 epochs trên Google Colab G
 | → Riêng lớp `defect` (Test) | 41 box | 76.6% | **85.4%** | **86.2%** | **71.7%** |
 
 * **Đo lường tốc độ thực tế (Empirical):** Đạt **125.9 ms/ảnh (~7.9 FPS)** trên Intel Core i7-8565U CPU (môi trường laptop văn phòng, không GPU). Tốc độ dự kiến **>80 FPS** trên GPU công nghiệp (NVIDIA T4 / RTX).
-* **Lưu ý khoa học & Giới hạn thực tế:** Kết quả trên tập Test đóng vai trò là ngưỡng trên thực nghiệm do tồn tại 53 cặp ảnh cận trùng giữa train-test từ các lần trích xuất chuỗi khung hình Roboflow. Pipeline hiện tại đã bổ sung cơ chế Multi-frame Voting để khắc phục rủi ro nhận diện sai khi đối mặt với khoảng cách miền (domain gap / ánh sáng thay đổi) ngoài thực tế.
+* **Lưu ý khoa học & Giới hạn thực tế:** Kết quả trên tập Test đóng vai trò là ngưỡng trên thực nghiệm do đối sánh thuật toán (pHash/SSIM) phát hiện khoảng 53–54 cặp ảnh cận trùng giữa train-test từ các lần trích xuất chuỗi khung hình Roboflow. Pipeline hiện tại đã bổ sung cơ chế Multi-frame Voting để khắc phục rủi ro nhận diện sai khi đối mặt với khoảng cách miền (domain gap / ánh sáng thay đổi) ngoài thực tế.
 * Chi tiết báo cáo, ma trận nhầm lẫn và biểu đồ xem tại: [`doc/evaluation/README.md`](doc/evaluation/README.md).
 
 ## 📥 Hướng Dẫn Về Trọng Số Mô Hình (.pt)

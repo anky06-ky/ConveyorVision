@@ -35,7 +35,7 @@ Tiến trình đo lường qua các mốc epoch trên tập Validation:
 
 ---
 
-## 3. Kết Quả Đánh Giá Độc Lập Trên Tập Test (441 ảnh, 1.032 Bounding Boxes)
+## 3. Kết Quả Đánh Giá Trên Phân Tập Test (441 ảnh, 1.032 Bounding Boxes)
 
 Đánh giá bằng lệnh `python src/conveyorvision/evaluate.py --split test --model models/conveyor_yolo26_30ep_best.pt` trên 441 ảnh phân tập test:
 
@@ -50,9 +50,9 @@ Tiến trình đo lường qua các mốc epoch trên tập Validation:
 
 > [!WARNING]
 > **Lưu ý phương pháp luận — Rủi ro rò rỉ dữ liệu cận trùng (Near-Duplicate Leakage):**
-> Qua kiểm tra đối sánh hàm băm tri giác (perceptual similarity), ghi nhận **53 cặp ảnh cận trùng** giữa tập Train và tập Test (41 ảnh test có bản sao rất gần trong train, trong đó có **23/36 ảnh test chứa defect**). Nguyên nhân do dữ liệu trích xuất từ chuỗi khung hình video hoặc các phiên bản Roboflow được chia ngẫu nhiên theo ảnh thay vì theo phiên quay (session).
+> Qua kiểm tra đối sánh hàm băm tri giác (perceptual similarity/pHash/SSIM), ghi nhận **khoảng 53–54 cặp ảnh cận trùng** giữa tập Train và tập Test (41 ảnh test có bản sao rất gần trong train, trong đó có **23/36 ảnh test chứa defect**). Nguyên nhân do dữ liệu trích xuất từ chuỗi khung hình video hoặc các phiên bản Roboflow được chia ngẫu nhiên theo ảnh thay vì theo phiên quay (session).
 > 
-> Vì vậy, các chỉ số trên tập Test hiện tại nên được hiểu là **ngưỡng trên thực nghiệm (empirical upper bound)**. Để kiểm định khả năng tổng quát hóa thực sự, khuyến nghị phân tách tập test hoàn toàn theo từng video clip / lô sản xuất độc lập (video/session-based split).
+> Vì vậy, các chỉ số trên tập Test hiện tại nên được hiểu là **ngưỡng trên thực nghiệm (empirical upper bound)** của phân tập benchmark. Để kiểm định khả năng tổng quát hóa thực sự trên môi trường mới, khuyến nghị phân tách tập test hoàn toàn theo từng video clip / lô sản xuất độc lập (video/session-based split).
 
 ---
 
@@ -76,12 +76,12 @@ Tiến trình đo lường qua các mốc epoch trên tập Validation:
 ![Biểu đồ tiến trình huấn luyện](results.png)
 
 ### 5.2. Ma trận nhầm lẫn (Confusion Matrix)
-| Tập Validation (533 ảnh) | Tập Test Độc Lập (441 ảnh) |
+| Tập Validation (533 ảnh) | Phân Tập Test (441 ảnh) |
 | :---: | :---: |
 | ![Val CM](confusion_matrix_normalized.png) | ![Test CM](test_confusion_matrix_normalized.png) |
 
 ### 5.3. Đường cong Precision - Recall (PR Curve)
-| Tập Validation | Tập Test Độc Lập |
+| Tập Validation | Phân Tập Test |
 | :---: | :---: |
 | ![Val PR](BoxPR_curve.png) | ![Test PR](test_BoxPR_curve.png) |
 
@@ -93,7 +93,7 @@ Tiến trình đo lường qua các mốc epoch trên tập Validation:
 Trong bài toán thị giác công nghiệp, hiện tượng **"học tốt trên tập dữ liệu lab nhưng giảm hiệu quả khi ra môi trường nhà máy thật"** là thách thức phổ biến do:
 1. **Chiếu sáng & Phản quang:** Bề mặt chai nhựa/thủy tinh phản chiếu ánh đèn nhà xưởng khác với studio chụp mẫu.
 2. **Chuyển động & Nhòe hình (Motion Blur):** Vận tốc băng chuyền thực tế có thể tạo vệt mờ chuyển động nếu màn trập camera (shutter speed) chưa đồng bộ.
-3. **Biến thể sản phẩm mới:** Màu sắc nắp, nhãn mác, hình dáng chai khác biệt so với 2.666 ảnh huấn luyện ban đầu.
+3. **Biến thể sản phẩm mới:** Màu sắc nắp, nhãn mác, hình dáng chai khác biệt so với 1.692 ảnh tập huấn luyện ban đầu (trong tổng quy mô 2.666 ảnh của cả 3 phân tập).
 
 ### 6.2. Giải pháp kỹ thuật đã triển khai & Khuyến nghị tiếp theo
 * **Cơ chế Multi-frame Voting:** Đã được tích hợp trực tiếp vào `src/conveyorvision/inference_conveyor.py`. Thay vì phán quyết ngay ở frame đầu tiên (dễ nhầm do góc nghiêng hoặc mép ảnh), hệ thống tích lũy lịch sử nhận diện của từng Track ID qua ByteTrack. Chai chỉ được kết luận `DEFECT` khi có $\ge 2$ frame phát hiện lỗi hoặc 1 frame lỗi có độ tự tin cao ($\ge \max(0.5, \text{conf\_thresh})$).

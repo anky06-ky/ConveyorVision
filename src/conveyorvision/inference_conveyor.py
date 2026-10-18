@@ -52,10 +52,17 @@ def run_conveyor_inspection(
             Path("models/conveyor_yolo26_30ep_best.pt").resolve(),
             Path("runs/train/conveyor_yolo26_30/weights/best.pt").resolve(),
             Path("runs/detect/runs/train/conveyor_yolo26_30/weights/best.pt").resolve(),
+            Path("runs/pilot/pilot_test/weights/best.pt").resolve(),
+            Path("runs/detect/runs/pilot/pilot_test/weights/best.pt").resolve(),
+            Path("runs/pilot/pilot_run/weights/best.pt").resolve(),
             Path("runs/train/conveyor_yolo26_30/weights/last.pt").resolve(),
             Path("runs/detect/runs/train/conveyor_yolo26_30/weights/last.pt").resolve(),
+            Path("runs/pilot/pilot_test/weights/last.pt").resolve(),
             Path("weights/best.pt").resolve()
         ]
+        if Path("runs").exists():
+            candidate_fallbacks.extend(sorted(Path("runs").rglob("best.pt"), key=lambda p: p.stat().st_mtime, reverse=True))
+            candidate_fallbacks.extend(sorted(Path("runs").rglob("last.pt"), key=lambda p: p.stat().st_mtime, reverse=True))
         found_fallback = next((p for p in candidate_fallbacks if p.exists()), None)
         if found_fallback:
             print(f"[INFO] Không tìm thấy {model_file}, sử dụng checkpoint: {found_fallback}")
@@ -104,9 +111,8 @@ def run_conveyor_inspection(
         csv_writer = csv.writer(csv_file)
         csv_writer.writerow(["timestamp_s", "track_id", "class_id", "class_name", "confidence", "status"])
 
-    # Khởi tạo biến thống kê trước vòng lặp để tránh UnboundLocalError khi video rỗng
-    track_history = {}     # {track_id: {"pass_votes": int, "defect_votes": int, "max_defect_conf": float, "logged": bool}}
-    tracked_objects = {}   # {track_id: int(0: pass, 1: defect)}
+    # Khởi tạo biến quản lý vòng đời tracking (Track Lifecycle & Multi-frame Voting)
+    track_history = {}
     total_pass = 0
     total_defect = 0
     defect_rate = 0.0
@@ -132,6 +138,7 @@ def run_conveyor_inspection(
             curr_time = time.time()
             fps = 1.0 / max(1e-5, (curr_time - prev_time))
             prev_time = curr_time
+            curr_ts = frame_idx / fps_in
 
             # Chạy tracking qua YOLO26 với cấu hình ByteTrack tường minh
             results = model.track(
@@ -158,40 +165,47 @@ def run_conveyor_inspection(
                                 "pass_votes": 0,
                                 "defect_votes": 0,
                                 "max_defect_conf": 0.0,
+                                "max_conf": conf,
+                                "is_defect": False,
+                                "state": "INSPECTING",
+                                "first_ts": curr_ts,
+                                "last_seen_ts": curr_ts,
+                                "last_seen_frame": frame_idx,
                                 "logged": False
                             }
 
+                        th = track_history[track_id]
+                        th["last_seen_frame"] = frame_idx
+                        th["last_seen_ts"] = curr_ts
+                        if conf > th["max_conf"]:
+                            th["max_conf"] = conf
+
                         if cls_id == 1:
-                            track_history[track_id]["defect_votes"] += 1
-                            if conf > track_history[track_id]["max_defect_conf"]:
-                                track_history[track_id]["max_defect_conf"] = conf
+                            th["defect_votes"] += 1
+                            if conf > th["max_defect_conf"]:
+                                th["max_defect_conf"] = conf
                         else:
-                            track_history[track_id]["pass_votes"] += 1
+                            th["pass_votes"] += 1
 
-                        # Tiêu chí phân loại công nghiệp:
-                        # Nếu vật thể xuất hiện defect >= 2 frames hoặc 1 frame defect với conf >= max(0.5, conf_thresh),
-                        # chai sẽ được chốt là DEFECT (tránh việc gán nhầm pass ở frame đầu rìa ảnh).
-                        is_defect = (
-                            track_history[track_id]["defect_votes"] >= 2 or
-                            (track_history[track_id]["defect_votes"] >= 1 and track_history[track_id]["max_defect_conf"] >= max(0.5, conf_thresh))
-                        )
-                        resolved_cls = 1 if is_defect else 0
-                        tracked_objects[track_id] = resolved_cls
+                        # Tiêu chuẩn phát hiện phế phẩm công nghiệp:
+                        # Khi phát hiện defect >= 2 frames hoặc 1 frame defect có conf >= max(0.5, conf_thresh),
+                        # sản phẩm lập tức khóa nhãn DEFECT vĩnh viễn (không bao giờ quay lại PASS).
+                        if not th["is_defect"]:
+                            if th["defect_votes"] >= 2 or (th["defect_votes"] >= 1 and th["max_defect_conf"] >= max(0.5, conf_thresh)):
+                                th["is_defect"] = True
+                                th["state"] = "DEFECT"
+                                if not th["logged"]:
+                                    th["logged"] = True
+                                    if csv_writer:
+                                        csv_writer.writerow([f"{curr_ts:.2f}", track_id, 1, "defect", f"{th['max_defect_conf']:.2f}", "DEFECT"])
+                                        csv_file.flush()
 
-                        # Ghi log CSV khi đã quan sát đủ tin cậy (>= 3 frames hoặc khi phát hiện defect rõ ràng)
-                        total_obs = track_history[track_id]["pass_votes"] + track_history[track_id]["defect_votes"]
-                        if not track_history[track_id]["logged"] and (is_defect or total_obs >= 3):
-                            track_history[track_id]["logged"] = True
-                            if csv_writer:
-                                ts = frame_idx / fps_in
-                                cname = "defect" if resolved_cls == 1 else "pass"
-                                status_str = "DEFECT" if resolved_cls == 1 else "PASS"
-                                csv_writer.writerow([f"{ts:.2f}", track_id, resolved_cls, cname, f"{conf:.2f}", status_str])
+                        is_defect_now = th["is_defect"]
                     else:
-                        resolved_cls = cls_id
+                        is_defect_now = (cls_id == 1)
 
-                    # Màu sắc: Xanh lá (pass = 0), Đỏ (defect = 1)
-                    if resolved_cls == 1 or cls_id == 1:
+                    # Màu sắc: Xanh lá (pass), Đỏ (defect)
+                    if is_defect_now:
                         color = (0, 0, 255)  # Đỏ
                         label = f"DEFECT #{track_id} {conf:.2f}" if track_id != -1 else f"DEFECT {conf:.2f}"
                         has_defect_in_frame = True
@@ -203,25 +217,46 @@ def run_conveyor_inspection(
                     cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
                     cv2.putText(frame, label, (x1, max(20, y1 - 8)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
+            # Cập nhật kết thúc kiểm tra cho các chai đã rời khỏi góc nhìn camera (lost >= 5 frames)
+            for tid, th in track_history.items():
+                if not th["logged"] and th["state"] == "INSPECTING":
+                    if (frame_idx - th["last_seen_frame"]) >= 5:
+                        total_obs = th["pass_votes"] + th["defect_votes"]
+                        if total_obs >= 3:
+                            # Đã quan sát đủ frame và không có lỗi -> Xác nhận ĐẠT CHUẨN (PASS)
+                            th["state"] = "PASS"
+                            th["logged"] = True
+                            if csv_writer:
+                                csv_writer.writerow([f"{th['last_seen_ts']:.2f}", tid, 0, "pass", f"{th['max_conf']:.2f}", "PASS"])
+                                csv_file.flush()
+                        else:
+                            # Quá ít frame (< 3 frames) ở rìa -> Nhiễu/glitch bỏ qua
+                            th["state"] = "INVALID"
+
             # Cập nhật trạng thái báo động
             if has_defect_in_frame:
                 alert_frames = 15
 
-            # Đếm tổng pass và defect duy nhất
-            total_pass = sum(1 for c in tracked_objects.values() if c == 0)
-            total_defect = sum(1 for c in tracked_objects.values() if c == 1)
-            total_items = total_pass + total_defect
-            defect_rate = (total_defect / total_items * 100) if total_items > 0 else 0.0
+            # Thống kê số lượng chuẩn xác:
+            # - total_defect: Tất cả các sản phẩm đã xác nhận lỗi (DEFECT)
+            # - total_pass: Tất cả các sản phẩm đã hoàn thành kiểm định và đạt chuẩn (PASS)
+            # - inspecting_count: Số chai đang di chuyển trên băng chuyền chưa kết thúc kiểm tra
+            total_pass = sum(1 for th in track_history.values() if th["state"] == "PASS")
+            total_defect = sum(1 for th in track_history.values() if th["state"] == "DEFECT")
+            inspecting_count = sum(1 for th in track_history.values() if th["state"] == "INSPECTING" and (frame_idx - th["last_seen_frame"]) < 5)
+            total_finalized = total_pass + total_defect
+            defect_rate = (total_defect / total_finalized * 100) if total_finalized > 0 else 0.0
 
             # Vẽ bảng điều khiển Dashboard (HUD) trên frame
             overlay = frame.copy()
-            cv2.rectangle(overlay, (10, 10), (320, 130), (0, 0, 0), -1)
+            cv2.rectangle(overlay, (10, 10), (330, 140), (0, 0, 0), -1)
             cv2.addWeighted(overlay, 0.65, frame, 0.35, 0, frame)
 
-            cv2.putText(frame, f"FPS: {fps:.1f}", (20, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-            cv2.putText(frame, f"TOTAL PASS  : {total_pass}", (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-            cv2.putText(frame, f"TOTAL DEFECT: {total_defect}", (20, 85), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-            cv2.putText(frame, f"DEFECT RATE : {defect_rate:.1f}%", (20, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+            cv2.putText(frame, f"FPS: {fps:.1f}", (20, 32), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
+            cv2.putText(frame, f"ON BELT (ACTIVE): {inspecting_count}", (20, 56), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 0), 2)
+            cv2.putText(frame, f"TOTAL PASS      : {total_pass}", (20, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 0), 2)
+            cv2.putText(frame, f"TOTAL DEFECT    : {total_defect}", (20, 104), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 255), 2)
+            cv2.putText(frame, f"DEFECT RATE     : {defect_rate:.1f}%", (20, 128), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 255), 2)
 
             # Banner cảnh báo loại bỏ phế phẩm (Rejection Banner)
             if alert_frames > 0:
@@ -242,22 +277,35 @@ def run_conveyor_inspection(
         cap.release()
         if writer:
             writer.release()
-        # Ghi nốt các track chưa kịp log vào CSV trước khi đóng file
+        # Chốt trạng thái cho các sản phẩm còn đang trên băng chuyền khi video kết thúc
         if csv_writer:
             for tid, th in track_history.items():
                 if not th["logged"]:
-                    resolved_cls = tracked_objects.get(tid, 0)
-                    cname = "defect" if resolved_cls == 1 else "pass"
-                    status_str = "DEFECT" if resolved_cls == 1 else "PASS"
-                    csv_writer.writerow(["END", tid, resolved_cls, cname, f"{th['max_defect_conf']:.2f}", status_str])
+                    total_obs = th["pass_votes"] + th["defect_votes"]
+                    if th["is_defect"]:
+                        th["state"] = "DEFECT"
+                        th["logged"] = True
+                        csv_writer.writerow([f"{th['last_seen_ts']:.2f}", tid, 1, "defect", f"{th['max_defect_conf']:.2f}", "DEFECT"])
+                    elif total_obs >= 3:
+                        th["state"] = "PASS"
+                        th["logged"] = True
+                        csv_writer.writerow([f"{th['last_seen_ts']:.2f}", tid, 0, "pass", f"{th['max_conf']:.2f}", "PASS"])
+                    else:
+                        th["state"] = "INVALID"
         if csv_file:
+            csv_file.flush()
             csv_file.close()
         cv2.destroyAllWindows()
+
+    total_pass = sum(1 for th in track_history.values() if th["state"] == "PASS")
+    total_defect = sum(1 for th in track_history.values() if th["state"] == "DEFECT")
+    total_items = total_pass + total_defect
+    defect_rate = (total_defect / total_items * 100) if total_items > 0 else 0.0
 
     print("\n" + "=" * 65)
     print("                     TỔNG KẾT BĂNG CHUYỀN                      ")
     print("=" * 65)
-    print(f"  - Tổng số sản phẩm qua kiểm tra: {len(tracked_objects)}")
+    print(f"  - Tổng số sản phẩm qua kiểm tra: {total_items}")
     print(f"  - Số sản phẩm ĐẠT CHUẨN (PASS):  {total_pass}")
     print(f"  - Số sản phẩm LỖI (DEFECT):      {total_defect}")
     print(f"  - Tỷ lệ lỗi (Defect Rate):       {defect_rate:.2f}%")

@@ -38,10 +38,17 @@ def evaluate_model(
             Path("models/conveyor_yolo26_30ep_best.pt").resolve(),
             Path("runs/train/conveyor_yolo26_30/weights/best.pt").resolve(),
             Path("runs/detect/runs/train/conveyor_yolo26_30/weights/best.pt").resolve(),
+            Path("runs/pilot/pilot_test/weights/best.pt").resolve(),
+            Path("runs/detect/runs/pilot/pilot_test/weights/best.pt").resolve(),
+            Path("runs/pilot/pilot_run/weights/best.pt").resolve(),
             Path("runs/train/conveyor_yolo26_30/weights/last.pt").resolve(),
             Path("runs/detect/runs/train/conveyor_yolo26_30/weights/last.pt").resolve(),
+            Path("runs/pilot/pilot_test/weights/last.pt").resolve(),
             Path("weights/best.pt").resolve()
         ]
+        if Path("runs").exists():
+            candidate_fallbacks.extend(sorted(Path("runs").rglob("best.pt"), key=lambda p: p.stat().st_mtime, reverse=True))
+            candidate_fallbacks.extend(sorted(Path("runs").rglob("last.pt"), key=lambda p: p.stat().st_mtime, reverse=True))
         found_fallback = next((p for p in candidate_fallbacks if p.exists()), None)
         if found_fallback:
             print(f"[INFO] Không tìm thấy {model_file}, sử dụng checkpoint: {found_fallback}")
@@ -102,19 +109,32 @@ def evaluate_model(
 
     p, r, map50, map50_95 = metrics.box.mean_results()
     speed = metrics.speed
+    names = getattr(metrics, "names", {}) or {0: "pass", 1: "defect"}
 
-    print("\n" + "=" * 65)
-    print("                   KẾT QUẢ ĐÁNH GIÁ CHI TIẾT                  ")
-    print("=" * 65)
-    print(f"  - Precision (Độ chính xác):          {p * 100:.2f}%")
-    print(f"  - Recall (Độ nhạy / Bắt trúng):      {r * 100:.2f}%")
-    print(f"  - mAP@50:                            {map50 * 100:.2f}%")
-    print(f"  - mAP@50-95:                         {map50_95 * 100:.2f}%")
-    print(f"  - Thời gian inference trung bình:    {speed.get('inference', 0):.2f} ms/ảnh")
+    print("\n" + "=" * 72)
+    print("                      KẾT QUẢ ĐÁNH GIÁ CHI TIẾT                       ")
+    print("=" * 72)
+    print(f"{'Lớp (Class)':<15} | {'Precision':<10} | {'Recall':<10} | {'mAP@50':<10} | {'mAP@50-95':<10}")
+    print("-" * 72)
+    print(f"{'Tất cả (All)':<15} | {p * 100:>9.1f}% | {r * 100:>9.1f}% | {map50 * 100:>9.1f}% | {map50_95 * 100:>9.1f}%")
+
+    # In chi tiết từng lớp riêng biệt (pass, defect)
+    ap_classes = getattr(metrics.box, "ap_class_index", list(names.keys()))
+    for idx, c_idx in enumerate(ap_classes):
+        cname = names.get(c_idx, f"Class {c_idx}")
+        try:
+            cp, cr, cmap50, cmap = metrics.box.class_result(idx)
+            print(f"{cname:<15} | {cp * 100:>9.1f}% | {cr * 100:>9.1f}% | {cmap50 * 100:>9.1f}% | {cmap * 100:>9.1f}%")
+        except Exception:
+            pass
+    print("-" * 72)
+    print(f"  - Tiền xử lý (Preprocess):            {speed.get('preprocess', 0):.2f} ms/ảnh")
+    print(f"  - Suy luận (Inference):               {speed.get('inference', 0):.2f} ms/ảnh")
+    print(f"  - Hậu xử lý (Postprocess):            {speed.get('loss', 0) + speed.get('postprocess', 0):.2f} ms/ảnh")
     if speed.get('inference', 0) > 0:
         fps = 1000.0 / speed['inference']
         print(f"  - Tốc độ xử lý ước tính:             {fps:.1f} FPS")
-    print("=" * 65 + "\n")
+    print("=" * 72 + "\n")
 
     return metrics
 
