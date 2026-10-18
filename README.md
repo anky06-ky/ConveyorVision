@@ -18,10 +18,12 @@ conveyorvision/
     video_io.py                # trích frame từ video bằng OpenCV
     dataset_manager.py         # quản lý, remap 2 class và chuẩn hóa dữ liệu
     train_pilot.py             # script huấn luyện pilot qua CLI
+    evaluate.py                # đánh giá độc lập mô hình trên tập test/val
+    inference_conveyor.py      # pipeline kiểm định & đếm sản phẩm thời gian thực
   tools/                       # các script tiện ích định dạng báo cáo Word/Markdown
   models/                      # file .pt tối ưu sau khi train
-  tests/
-  reports/
+  tests/                       # bộ unit test tự động (pytest)
+  reports/                     # log kết quả kiểm định CSV và báo cáo
 ```
 
 ## Bước 0 — cài môi trường
@@ -89,8 +91,40 @@ Hoặc qua dòng lệnh Python trực tiếp:
 python -c "
 from ultralytics import YOLO
 model = YOLO('yolo26n.pt')
-model.train(data='data/data.yaml', epochs=30, imgsz=640, project='runs/train', name='conveyor_yolo26_30', exist_ok=True)
+model.train(data='data/data.yaml', epochs=30, imgsz=640, project='runs/train', name='conveyor_yolo26_30', exist_ok=True, cls=1.2)
 "
 ```
+
+## Bước 5 — Đánh giá độc lập mô hình (Model Evaluation)
+
+Đánh giá độ chính xác trên tập `test` (441 ảnh độc lập) hoặc `val`:
+```bash
+# Đánh giá trên tập test với model tốt nhất
+python src/conveyorvision/evaluate.py --split test --model models/conveyor_yolo26_30ep_best.pt
+
+# Đánh giá trên tập val
+python src/conveyorvision/evaluate.py --split val --model models/conveyor_yolo26_30ep_best.pt
+```
+
+## Bước 6 — Kiểm định & đếm sản phẩm băng chuyền thời gian thực (Real-time Inspection)
+
+Pipeline theo vết (Object Tracking với ByteTrack), đếm chính xác sản phẩm không bị trùng lặp, cảnh báo lỗi và xuất log:
+```bash
+# Chạy trên file video băng chuyền
+python src/conveyorvision/inference_conveyor.py --source raw_videos/sample.mp4 --model models/conveyor_yolo26_30ep_best.pt
+
+# Chạy trực tiếp từ camera / webcam
+python src/conveyorvision/inference_conveyor.py --source 0 --model models/conveyor_yolo26_30ep_best.pt
+```
+
+## 📊 Kết Quả Huấn Luyện 30 Epochs (Pilot Benchmark)
+
+Mô hình **YOLO26 Nano** sau 30 epochs huấn luyện trên NVIDIA T4 GPU (Google Colab, thời gian chạy: **7.7 phút**):
+- **mAP@50**: **82.0%**
+- **mAP@50-95**: **58.0%**
+- **Precision**: **78.7%**
+- **Recall**: **79.3%**
+- Chi tiết biểu đồ Loss curves, Confusion Matrix và PR curve xem tại: [`doc/evaluation/README.md`](doc/evaluation/README.md)
+
 
 

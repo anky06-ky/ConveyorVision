@@ -103,3 +103,15 @@ def test_training_arguments_compatibility():
     # Ensure passing fl_gamma explicitly raises SyntaxError in Ultralytics
     with pytest.raises(SyntaxError):
         get_cfg(DEFAULT_CFG_PATH, {"fl_gamma": 1.5})
+
+
+def test_pipeline_modules_importable():
+    """Verify all pipeline modules (video_io, evaluate, inference_conveyor) are importable."""
+    from conveyorvision.evaluate import evaluate_model
+    from conveyorvision.inference_conveyor import run_conveyor_inspection
+    from conveyorvision.video_io import extract_frames
+
+    assert callable(evaluate_model)
+    assert callable(run_conveyor_inspection)
+    assert callable(extract_frames)
+
