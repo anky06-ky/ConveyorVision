@@ -16,7 +16,7 @@ Báo cáo kết quả huấn luyện và đánh giá thực nghiệm mô hình t
 | **Quy mô tập dữ liệu** | 2.666 ảnh (Train: 1.692, Val: 533, Test: 441) |
 | **Batch size / Image size** | 16 / 640x640 |
 | **Optimizer** | AdamW (`lr=0.001667`, `momentum=0.9`) |
-| **Trọng số phân loại (`cls`)** | `cls=1.2` (hỗ trợ bù trừ mất cân bằng lớp 10:1) |
+| **Trọng số phân loại (`cls`)** | `cls=1.2` (tham số thử nghiệm nhằm tăng phạt lỗi phế phẩm khi mất cân bằng lớp; cần ablation đối chứng) |
 
 ---
 
@@ -52,7 +52,7 @@ Tiến trình đo lường qua các mốc epoch trên tập Validation:
 > **Lưu ý phương pháp luận — Rủi ro rò rỉ dữ liệu cận trùng (Near-Duplicate Leakage):**
 > Qua kiểm tra đối sánh hàm băm tri giác (perceptual similarity/pHash/SSIM), ghi nhận **khoảng 53–54 cặp ảnh cận trùng** giữa tập Train và tập Test (41 ảnh test có bản sao rất gần trong train, trong đó có **23/36 ảnh test chứa defect**). Nguyên nhân do dữ liệu trích xuất từ chuỗi khung hình video hoặc các phiên bản Roboflow được chia ngẫu nhiên theo ảnh thay vì theo phiên quay (session).
 > 
-> Vì vậy, các chỉ số trên tập Test hiện tại nên được hiểu là **ngưỡng trên thực nghiệm (empirical upper bound)** của phân tập benchmark. Để kiểm định khả năng tổng quát hóa thực sự trên môi trường mới, khuyến nghị phân tách tập test hoàn toàn theo từng video clip / lô sản xuất độc lập (video/session-based split).
+> Vì vậy, các chỉ số trên tập Test hiện tại nên được hiểu là **ngưỡng trên thực nghiệm (empirical upper bound)** của phân tập benchmark. Để có đánh giá độc lập thực sự phản ánh năng lực tổng quát hóa ngoài môi trường thực tế, bước tiếp theo bắt buộc phải **phân tách lại toàn bộ tập dữ liệu theo từng video clip / phiên sản xuất độc lập (video/session-based split)** và tái đánh giá mô hình.
 
 ---
 

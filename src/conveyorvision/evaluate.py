@@ -130,7 +130,9 @@ def evaluate_model(
     print("-" * 72)
     print(f"  - Tiền xử lý (Preprocess):            {speed.get('preprocess', 0):.2f} ms/ảnh")
     print(f"  - Suy luận (Inference):               {speed.get('inference', 0):.2f} ms/ảnh")
-    print(f"  - Hậu xử lý (Postprocess):            {speed.get('loss', 0) + speed.get('postprocess', 0):.2f} ms/ảnh")
+    print(f"  - Hậu xử lý (Postprocess):            {speed.get('postprocess', 0):.2f} ms/ảnh")
+    if speed.get('loss', 0) > 0:
+        print(f"  - Tính toán Loss (Validation Loss):   {speed.get('loss', 0):.2f} ms/ảnh")
     if speed.get('inference', 0) > 0:
         fps = 1000.0 / speed['inference']
         print(f"  - Tốc độ xử lý ước tính:             {fps:.1f} FPS")

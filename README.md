@@ -127,7 +127,7 @@ Mô hình **YOLO26 Nano** được huấn luyện 30 epochs trên Google Colab G
 | → Riêng lớp `defect` (Test) | 41 box | 76.6% | **85.4%** | **86.2%** | **71.7%** |
 
 * **Đo lường tốc độ thực tế (Empirical):** Đạt **125.9 ms/ảnh (~7.9 FPS)** trên Intel Core i7-8565U CPU (môi trường laptop văn phòng, không GPU). Tốc độ dự kiến **>80 FPS** trên GPU công nghiệp (NVIDIA T4 / RTX).
-* **Lưu ý khoa học & Giới hạn thực tế:** Kết quả trên tập Test đóng vai trò là ngưỡng trên thực nghiệm do đối sánh thuật toán (pHash/SSIM) phát hiện khoảng 53–54 cặp ảnh cận trùng giữa train-test từ các lần trích xuất chuỗi khung hình Roboflow. Pipeline hiện tại đã bổ sung cơ chế Multi-frame Voting để khắc phục rủi ro nhận diện sai khi đối mặt với khoảng cách miền (domain gap / ánh sáng thay đổi) ngoài thực tế.
+* **Lưu ý khoa học & Giới hạn thực tế:** Kết quả trên tập Test đóng vai trò là ngưỡng trên thực nghiệm do đối sánh thuật toán (pHash/SSIM) phát hiện khoảng 53–54 cặp ảnh cận trùng giữa train-test từ việc chia ngẫu nhiên chuỗi khung hình Roboflow; để đánh giá độc lập thực sự cần chia lại tập test theo phiên quay vật lý độc lập (session-based split). Pipeline tracking tích hợp cơ chế Multi-frame Voting giúp ổn định nhãn và lọc nhiễu nhận diện qua chuỗi khung hình; tuy nhiên để giải quyết triệt để khoảng cách miền (domain gap / ánh sáng thay đổi), cần thu thập thêm dữ liệu hiện trường để tinh chỉnh (fine-tune) mô hình.
 * Chi tiết báo cáo, ma trận nhầm lẫn và biểu đồ xem tại: [`doc/evaluation/README.md`](doc/evaluation/README.md).
 
 ## 📥 Hướng Dẫn Về Trọng Số Mô Hình (.pt)

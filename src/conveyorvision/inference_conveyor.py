@@ -196,8 +196,15 @@ def run_conveyor_inspection(
                                 th["state"] = "DEFECT"
                                 if not th["logged"]:
                                     th["logged"] = True
+                                    th["logged_status"] = "DEFECT"
                                     if csv_writer:
                                         csv_writer.writerow([f"{curr_ts:.2f}", track_id, 1, "defect", f"{th['max_defect_conf']:.2f}", "DEFECT"])
+                                        csv_file.flush()
+                                elif th.get("logged_status") == "PASS":
+                                    # Xử lý tình huống biên: Track từng bị chốt PASS do mất dấu nhưng ByteTrack nhận lại và phát hiện defect
+                                    th["logged_status"] = "DEFECT"
+                                    if csv_writer:
+                                        csv_writer.writerow([f"{curr_ts:.2f}", track_id, 1, "defect", f"{th['max_defect_conf']:.2f}", "DEFECT_CORRECTION"])
                                         csv_file.flush()
 
                         is_defect_now = th["is_defect"]
@@ -217,15 +224,16 @@ def run_conveyor_inspection(
                     cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
                     cv2.putText(frame, label, (x1, max(20, y1 - 8)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
 
-            # Cập nhật kết thúc kiểm tra cho các chai đã rời khỏi góc nhìn camera (lost >= 5 frames)
+            # Cập nhật kết thúc kiểm tra cho các chai đã rời khỏi góc nhìn camera (lost >= 30 frames khớp track_buffer ByteTrack)
             for tid, th in track_history.items():
                 if not th["logged"] and th["state"] == "INSPECTING":
-                    if (frame_idx - th["last_seen_frame"]) >= 5:
+                    if (frame_idx - th["last_seen_frame"]) >= 30:
                         total_obs = th["pass_votes"] + th["defect_votes"]
                         if total_obs >= 3:
                             # Đã quan sát đủ frame và không có lỗi -> Xác nhận ĐẠT CHUẨN (PASS)
                             th["state"] = "PASS"
                             th["logged"] = True
+                            th["logged_status"] = "PASS"
                             if csv_writer:
                                 csv_writer.writerow([f"{th['last_seen_ts']:.2f}", tid, 0, "pass", f"{th['max_conf']:.2f}", "PASS"])
                                 csv_file.flush()
@@ -243,7 +251,7 @@ def run_conveyor_inspection(
             # - inspecting_count: Số chai đang di chuyển trên băng chuyền chưa kết thúc kiểm tra
             total_pass = sum(1 for th in track_history.values() if th["state"] == "PASS")
             total_defect = sum(1 for th in track_history.values() if th["state"] == "DEFECT")
-            inspecting_count = sum(1 for th in track_history.values() if th["state"] == "INSPECTING" and (frame_idx - th["last_seen_frame"]) < 5)
+            inspecting_count = sum(1 for th in track_history.values() if th["state"] == "INSPECTING" and (frame_idx - th["last_seen_frame"]) < 30)
             total_finalized = total_pass + total_defect
             defect_rate = (total_defect / total_finalized * 100) if total_finalized > 0 else 0.0
 
@@ -277,21 +285,24 @@ def run_conveyor_inspection(
         cap.release()
         if writer:
             writer.release()
-        # Chốt trạng thái cho các sản phẩm còn đang trên băng chuyền khi video kết thúc
-        if csv_writer:
-            for tid, th in track_history.items():
-                if not th["logged"]:
-                    total_obs = th["pass_votes"] + th["defect_votes"]
-                    if th["is_defect"]:
-                        th["state"] = "DEFECT"
-                        th["logged"] = True
+        # Chốt trạng thái cho các sản phẩm còn đang trên băng chuyền khi video kết thúc (chạy vô điều kiện)
+        for tid, th in track_history.items():
+            if not th["logged"]:
+                total_obs = th["pass_votes"] + th["defect_votes"]
+                if th["is_defect"]:
+                    th["state"] = "DEFECT"
+                    th["logged"] = True
+                    th["logged_status"] = "DEFECT"
+                    if csv_writer:
                         csv_writer.writerow([f"{th['last_seen_ts']:.2f}", tid, 1, "defect", f"{th['max_defect_conf']:.2f}", "DEFECT"])
-                    elif total_obs >= 3:
-                        th["state"] = "PASS"
-                        th["logged"] = True
+                elif total_obs >= 3:
+                    th["state"] = "PASS"
+                    th["logged"] = True
+                    th["logged_status"] = "PASS"
+                    if csv_writer:
                         csv_writer.writerow([f"{th['last_seen_ts']:.2f}", tid, 0, "pass", f"{th['max_conf']:.2f}", "PASS"])
-                    else:
-                        th["state"] = "INVALID"
+                else:
+                    th["state"] = "INVALID"
         if csv_file:
             csv_file.flush()
             csv_file.close()

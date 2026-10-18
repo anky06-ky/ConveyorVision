@@ -1,5 +1,5 @@
 # ConveyorVision — Cấu hình Dataset YOLO (0: pass, 1: defect)
-# Lưu ý: Khi chạy qua evaluate.py, train_pilot.py hoặc Notebook, path sẽ tự động cập nhật tuyệt đối theo máy hiện tại.
+# Lưu ý: File gốc duy trì path tương đối ('path: data') cho Git. Khi chạy huấn luyện/đánh giá, các script và Notebook sẽ tự động sinh file cấu hình runtime (runs/runtime_data.yaml) chứa đường dẫn tuyệt đối.
 path: data
 train: images/train
 val: images/val
