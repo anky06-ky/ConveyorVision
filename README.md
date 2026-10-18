@@ -108,10 +108,10 @@ python src/conveyorvision/evaluate.py --split val --model models/conveyor_yolo26
 
 ## Bước 6 — Kiểm định & đếm sản phẩm băng chuyền thời gian thực (Real-time Inspection)
 
-Pipeline theo vết (Object Tracking với ByteTrack), đếm chính xác sản phẩm không bị trùng lặp, cảnh báo lỗi và xuất log:
+Pipeline theo vết (Object Tracking với ByteTrack), cơ chế **Multi-frame Voting** chống phán đoán vội ở mép khung hình, đếm chính xác sản phẩm không bị trùng lặp, cảnh báo phế phẩm và xuất log CSV:
 ```bash
-# Chạy trên file video băng chuyền
-python src/conveyorvision/inference_conveyor.py --source raw_videos/sample.mp4 --model models/conveyor_yolo26_30ep_best.pt
+# Chạy trên file video băng chuyền với tracker ByteTrack
+python src/conveyorvision/inference_conveyor.py --source raw_videos/sample.mp4 --model models/conveyor_yolo26_30ep_best.pt --tracker bytetrack.yaml
 
 # Chạy trực tiếp từ camera / webcam
 python src/conveyorvision/inference_conveyor.py --source 0 --model models/conveyor_yolo26_30ep_best.pt
@@ -124,20 +124,21 @@ Mô hình **YOLO26 Nano** được huấn luyện 30 epochs trên Google Colab G
 | Tập dữ liệu | Quy mô | Precision | Recall | mAP@50 | mAP@50-95 |
 | :--- | :---: | :---: | :---: | :---: | :---: |
 | **Validation** | 533 ảnh | 78.7% | 79.3% | 82.0% | 58.0% |
-| **Test (Độc lập)** | 441 ảnh | **78.2%** | **75.7%** | **82.5%** | **61.4%** |
+| **Test (Phân tập test)** | 441 ảnh | **78.2%** | **75.7%** | **82.5%** | **61.4%** |
 | → Riêng lớp `defect` (Test) | 41 box | 76.6% | **85.4%** | **86.2%** | **71.7%** |
 
-* **Tốc độ đo thực tế (Empirical):** Đạt **125.9 ms/ảnh (~7.9 FPS)** trên Intel Core i7-8565U CPU (môi trường laptop văn phòng không GPU). Tốc độ dự kiến **>80 FPS** trên GPU công nghiệp (NVIDIA T4 / RTX).
-* Chi tiết báo cáo và biểu đồ xem tại: [`doc/evaluation/README.md`](doc/evaluation/README.md).
+* **Đo lường tốc độ thực tế (Empirical):** Đạt **125.9 ms/ảnh (~7.9 FPS)** trên Intel Core i7-8565U CPU (môi trường laptop văn phòng, không GPU). Tốc độ dự kiến **>80 FPS** trên GPU công nghiệp (NVIDIA T4 / RTX).
+* **Lưu ý khoa học & Giới hạn thực tế:** Kết quả trên tập Test đóng vai trò là ngưỡng trên thực nghiệm do tồn tại 53 cặp ảnh cận trùng giữa train-test từ các lần trích xuất chuỗi khung hình Roboflow. Pipeline hiện tại đã bổ sung cơ chế Multi-frame Voting để khắc phục rủi ro nhận diện sai khi đối mặt với khoảng cách miền (domain gap / ánh sáng thay đổi) ngoài thực tế.
+* Chi tiết báo cáo, ma trận nhầm lẫn và biểu đồ xem tại: [`doc/evaluation/README.md`](doc/evaluation/README.md).
 
 ## 📥 Hướng Dẫn Về Trọng Số Mô Hình (.pt)
 
 Theo tiêu chuẩn quản lý mã nguồn Git và cấu hình [`.gitignore`](.gitignore), các file trọng số nhị phân nặng (`*.pt`) **không được lưu trực tiếp trên Git**.
 
 Để có file trọng số `models/conveyor_yolo26_30ep_best.pt` khi clone mới repository:
-1. **Cách 1 (Khuyên dùng - Tự huấn luyện lại):** Mở notebook `notebooks/ConveyorVision_YOLO_Training.ipynb` trên Google Colab GPU và bấm chạy toàn bộ. Mô hình sẽ hoàn thành huấn luyện 30 epochs sau **~7.7 phút** và xuất file `best.pt`.
+1. **Cách 1 (Khuyên dùng — Tự huấn luyện lại):** Mở notebook `notebooks/ConveyorVision_YOLO_Training.ipynb` trên Google Colab GPU và bấm chạy toàn bộ. Mô hình sẽ hoàn thành huấn luyện 30 epochs sau **~7.7 phút** và xuất file `best.pt`.
 2. **Cách 2 (Sử dụng CLI):** Chạy lệnh `python src/conveyorvision/train_pilot.py --epochs 30 --batch 16`.
-3. **Cách 3 (Tải trực tiếp):** Tải file trọng số `conveyor_yolo26_30ep_best.pt` từ mục **Releases** của GitHub repository và đặt vào thư mục `models/`.
+3. **Cách 3 (Tải trực tiếp qua Release):** Sau khi gắn tag phiên bản release chính thức trên GitHub, file trọng số `conveyor_yolo26_30ep_best.pt` sẽ được lưu trữ kèm tại mục **Releases** của repository.
 
 
 

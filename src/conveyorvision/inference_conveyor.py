@@ -1,8 +1,10 @@
 """Pipeline kiểm định & đếm sản phẩm thời gian thực trên băng chuyền (ConveyorVision).
 
 Tính năng:
-    - Nhận diện và theo vết (Object Tracking) sản phẩm qua từng frame để tránh đếm trùng.
-    - Phân loại: Xanh lá (pass: 0 - Đạt) và Đỏ (defect: 1 - Lỗi).
+    - Nhận diện và theo vết (Object Tracking với ByteTrack) qua từng frame.
+    - Cơ chế Multi-frame Voting: Không khóa cứng nhãn ở frame đầu; tự động cập nhật trạng thái
+      lỗi (DEFECT) nếu phát hiện khuyết tật trên bất kỳ frame quan sát tin cậy nào.
+    - Khởi tạo an toàn biến thống kê (tránh UnboundLocalError khi video rỗng hoặc không mở được).
     - Thống kê thời gian thực: Tổng Pass, Tổng Defect, Tỷ lệ lỗi (Defect Rate %), FPS.
     - Cảnh báo trực quan (Visual Rejection Alert) khi phát hiện phế phẩm.
     - Xuất video kết quả và file log CSV.
@@ -33,8 +35,9 @@ def run_conveyor_inspection(
     source: str = "0",
     model_path: str = "models/conveyor_yolo26_30ep_best.pt",
     conf_thresh: float = 0.45,
+    tracker_config: str = "bytetrack.yaml",
     out_video: str = "",
-    out_csv: str = "conveyor_inspection_log.csv",
+    out_csv: str = "reports/conveyor_inspection_log.csv",
     show_window: bool = True
 ):
     try:
@@ -101,8 +104,12 @@ def run_conveyor_inspection(
         csv_writer = csv.writer(csv_file)
         csv_writer.writerow(["timestamp_s", "track_id", "class_id", "class_name", "confidence", "status"])
 
-    # Thống kê tracking duy nhất
-    tracked_objects = {}  # {track_id: class_id}
+    # Khởi tạo biến thống kê trước vòng lặp để tránh UnboundLocalError khi video rỗng
+    track_history = {}     # {track_id: {"pass_votes": int, "defect_votes": int, "max_defect_conf": float, "logged": bool}}
+    tracked_objects = {}   # {track_id: int(0: pass, 1: defect)}
+    total_pass = 0
+    total_defect = 0
+    defect_rate = 0.0
     alert_frames = 0
     frame_idx = 0
     prev_time = time.time()
@@ -111,6 +118,7 @@ def run_conveyor_inspection(
     print("      HỆ THỐNG KIỂM ĐỊNH BĂNG CHUYỀN THỜI GIAN THỰC ĐANG CHẠY")
     print("=" * 65)
     print(f"  * Nguồn video:   {source}")
+    print(f"  * Tracker:       {tracker_config} (ByteTrack)")
     print(f"  * Độ tự tin:     {conf_thresh}")
     print("  * Bấm phím 'q' trên cửa sổ video để dừng kiểm tra.")
     print("=" * 65 + "\n")
@@ -125,8 +133,14 @@ def run_conveyor_inspection(
             fps = 1.0 / max(1e-5, (curr_time - prev_time))
             prev_time = curr_time
 
-            # Chạy tracking qua YOLO26
-            results = model.track(frame, persist=True, conf=conf_thresh, verbose=False)
+            # Chạy tracking qua YOLO26 với cấu hình ByteTrack tường minh
+            results = model.track(
+                frame,
+                persist=True,
+                tracker=tracker_config,
+                conf=conf_thresh,
+                verbose=False
+            )
             has_defect_in_frame = False
 
             if results and len(results) > 0 and results[0].boxes is not None:
@@ -137,17 +151,47 @@ def run_conveyor_inspection(
                     x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
                     track_id = int(box.id[0].item()) if box.id is not None else -1
 
-                    # Cập nhật thống kê vật thể duy nhất
-                    if track_id != -1 and track_id not in tracked_objects:
-                        tracked_objects[track_id] = cls_id
-                        status_str = "DEFECT" if cls_id == 1 else "PASS"
-                        if csv_writer:
-                            ts = frame_idx / fps_in
-                            cname = "defect" if cls_id == 1 else "pass"
-                            csv_writer.writerow([f"{ts:.2f}", track_id, cls_id, cname, f"{conf:.2f}", status_str])
+                    # Cơ chế Multi-frame Voting: Cập nhật tích lũy nhãn quan sát cho từng track ID
+                    if track_id != -1:
+                        if track_id not in track_history:
+                            track_history[track_id] = {
+                                "pass_votes": 0,
+                                "defect_votes": 0,
+                                "max_defect_conf": 0.0,
+                                "logged": False
+                            }
+
+                        if cls_id == 1:
+                            track_history[track_id]["defect_votes"] += 1
+                            if conf > track_history[track_id]["max_defect_conf"]:
+                                track_history[track_id]["max_defect_conf"] = conf
+                        else:
+                            track_history[track_id]["pass_votes"] += 1
+
+                        # Tiêu chí phân loại công nghiệp:
+                        # Nếu vật thể xuất hiện defect >= 2 frames hoặc 1 frame defect với conf >= max(0.5, conf_thresh),
+                        # chai sẽ được chốt là DEFECT (tránh việc gán nhầm pass ở frame đầu rìa ảnh).
+                        is_defect = (
+                            track_history[track_id]["defect_votes"] >= 2 or
+                            (track_history[track_id]["defect_votes"] >= 1 and track_history[track_id]["max_defect_conf"] >= max(0.5, conf_thresh))
+                        )
+                        resolved_cls = 1 if is_defect else 0
+                        tracked_objects[track_id] = resolved_cls
+
+                        # Ghi log CSV khi đã quan sát đủ tin cậy (>= 3 frames hoặc khi phát hiện defect rõ ràng)
+                        total_obs = track_history[track_id]["pass_votes"] + track_history[track_id]["defect_votes"]
+                        if not track_history[track_id]["logged"] and (is_defect or total_obs >= 3):
+                            track_history[track_id]["logged"] = True
+                            if csv_writer:
+                                ts = frame_idx / fps_in
+                                cname = "defect" if resolved_cls == 1 else "pass"
+                                status_str = "DEFECT" if resolved_cls == 1 else "PASS"
+                                csv_writer.writerow([f"{ts:.2f}", track_id, resolved_cls, cname, f"{conf:.2f}", status_str])
+                    else:
+                        resolved_cls = cls_id
 
                     # Màu sắc: Xanh lá (pass = 0), Đỏ (defect = 1)
-                    if cls_id == 1:
+                    if resolved_cls == 1 or cls_id == 1:
                         color = (0, 0, 255)  # Đỏ
                         label = f"DEFECT #{track_id} {conf:.2f}" if track_id != -1 else f"DEFECT {conf:.2f}"
                         has_defect_in_frame = True
@@ -198,6 +242,14 @@ def run_conveyor_inspection(
         cap.release()
         if writer:
             writer.release()
+        # Ghi nốt các track chưa kịp log vào CSV trước khi đóng file
+        if csv_writer:
+            for tid, th in track_history.items():
+                if not th["logged"]:
+                    resolved_cls = tracked_objects.get(tid, 0)
+                    cname = "defect" if resolved_cls == 1 else "pass"
+                    status_str = "DEFECT" if resolved_cls == 1 else "PASS"
+                    csv_writer.writerow(["END", tid, resolved_cls, cname, f"{th['max_defect_conf']:.2f}", status_str])
         if csv_file:
             csv_file.close()
         cv2.destroyAllWindows()
@@ -218,6 +270,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ConveyorVision Realtime Inspection")
     parser.add_argument("--source", type=str, default="0", help="Nguồn video (0 cho webcam, hoặc đường dẫn file .mp4)")
     parser.add_argument("--model", type=str, default="models/conveyor_yolo26_30ep_best.pt", help="File trọng số YOLO26")
+    parser.add_argument("--tracker", type=str, default="bytetrack.yaml", help="File cấu hình tracker (mặc định bytetrack.yaml)")
     parser.add_argument("--conf", type=float, default=0.45, help="Ngưỡng tin cậy (Confidence threshold)")
     parser.add_argument("--out-video", type=str, default="", help="Đường dẫn file video đầu ra (tùy chọn)")
     parser.add_argument("--out-csv", type=str, default="reports/conveyor_inspection_log.csv", help="File log CSV")
@@ -228,8 +281,8 @@ if __name__ == "__main__":
         source=args.source,
         model_path=args.model,
         conf_thresh=args.conf,
+        tracker_config=args.tracker,
         out_video=args.out_video,
         out_csv=args.out_csv,
         show_window=not args.no_show
     )
-

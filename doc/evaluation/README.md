@@ -37,7 +37,7 @@ Tiến trình đo lường qua các mốc epoch trên tập Validation:
 
 ## 3. Kết Quả Đánh Giá Độc Lập Trên Tập Test (441 ảnh, 1.032 Bounding Boxes)
 
-Đánh giá bằng lệnh `python src/conveyorvision/evaluate.py --split test --model models/conveyor_yolo26_30ep_best.pt` trên 441 ảnh kiểm thử hoàn toàn độc lập (chưa từng thấy trong quá trình huấn luyện):
+Đánh giá bằng lệnh `python src/conveyorvision/evaluate.py --split test --model models/conveyor_yolo26_30ep_best.pt` trên 441 ảnh phân tập test:
 
 | Lớp (Class) | Số lượng ảnh | Số Bounding Box | Precision | Recall | mAP@50 | mAP@50-95 |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
@@ -46,18 +46,27 @@ Tiến trình đo lường qua các mốc epoch trên tập Validation:
 | `defect` (Lỗi / Phế phẩm) | 36 | 41 | **76.6%** | **85.4%** | **86.2%** | **71.7%** |
 
 > [!NOTE]
-> **Điểm nổi bật:** Trên lớp sản phẩm lỗi (`defect`), mô hình đạt độ nhạy **Recall = 85.4%** và **mAP@50 = 86.2%**. Kết quả này chứng minh tham số `cls=1.2` đã phát huy tác dụng tối ưu, giảm thiểu tối đa hiện tượng bỏ sót phế phẩm (False Negative) trên băng chuyền.
+> **Quan sát trên lớp phế phẩm (`defect`):** Mô hình đạt độ nhạy **Recall = 85.4%** và **mAP@50 = 86.2%**. Trọng số phân loại thực nghiệm `cls=1.2` bước đầu cho thấy định hướng tốt trong việc tăng phạt lỗi bỏ sót phế phẩm (False Negative) khi dữ liệu lệch lớp (~10:1). Để khẳng định một cách chặt chẽ về mặt khoa học, thí nghiệm triệt tiêu (ablation study) đối chứng trực tiếp với `cls=0.5` mặc định cần được thực hiện trong giai đoạn tiếp theo.
+
+> [!WARNING]
+> **Lưu ý phương pháp luận — Rủi ro rò rỉ dữ liệu cận trùng (Near-Duplicate Leakage):**
+> Qua kiểm tra đối sánh hàm băm tri giác (perceptual similarity), ghi nhận **53 cặp ảnh cận trùng** giữa tập Train và tập Test (41 ảnh test có bản sao rất gần trong train, trong đó có **23/36 ảnh test chứa defect**). Nguyên nhân do dữ liệu trích xuất từ chuỗi khung hình video hoặc các phiên bản Roboflow được chia ngẫu nhiên theo ảnh thay vì theo phiên quay (session).
+> 
+> Vì vậy, các chỉ số trên tập Test hiện tại nên được hiểu là **ngưỡng trên thực nghiệm (empirical upper bound)**. Để kiểm định khả năng tổng quát hóa thực sự, khuyến nghị phân tách tập test hoàn toàn theo từng video clip / lô sản xuất độc lập (video/session-based split).
 
 ---
 
 ## 4. Đo Lường Thực Nghiệm Hiệu Năng & Tốc Độ (Inference Benchmark)
 
-* **Thiết bị đo lường thực tế (Empirical):** Intel Core i7-8565U CPU @ 1.80GHz (môi trường laptop văn phòng, không GPU).
-  - Preprocess: **3.1 ms**
-  - Inference: **125.9 ms**
-  - Postprocess: **2.4 ms**
-  - **Tốc độ thực tế đo được trên CPU:** **~7.9 FPS** (đủ đáp ứng cho các băng chuyền tốc độ chậm hoặc thiết bị kiểm tra tĩnh).
-* **Tốc độ ước tính trên GPU công nghiệp:** Dự kiến **>80 FPS** trên NVIDIA Tesla T4 / RTX 3060 / Jetson Orin Nano, đảm bảo kiểm định thời gian thực mượt mà cho dây chuyền tốc độ cao.
+* **Đo lường thực tế trên CPU (Empirical Measurement):**
+  - Cấu hình: Intel Core i7-8565U CPU @ 1.80GHz (laptop văn phòng phổ thông, không có GPU rời).
+  - Tiền xử lý (Preprocess): **3.1 ms/ảnh**
+  - Suy luận mô hình (Inference): **125.9 ms/ảnh**
+  - Hậu xử lý (Postprocess): **2.4 ms/ảnh**
+  - **Tốc độ thực tế đạt được:** **~7.9 FPS** (phù hợp với các hệ thống kiểm tra tĩnh theo chu kỳ hoặc trạm dừng băng chuyền chậm).
+* **Tốc độ ước tính trên GPU công nghiệp (Projected Edge GPU):**
+  - Dự kiến **>80 FPS** khi chạy trên NVIDIA Tesla T4 / RTX 3060 / Jetson Orin Nano (khi export sang TensorRT/FP16).
+  - Tốc độ thực tế trong môi trường sản xuất sẽ phụ thuộc thêm vào độ trễ nạp khung hình camera công nghiệp (GenICam/USB3) và thuật toán tracking ByteTrack.
 
 ---
 
@@ -78,7 +87,17 @@ Tiến trình đo lường qua các mốc epoch trên tập Validation:
 
 ---
 
-## 6. Đánh Giá Tổng Quan
+## 6. Thảo Luận Kỹ Thuật & Giới Hạn Thực Tế (Discussion & Limitations)
 
-1. **Khả năng tổng quát hóa (Generalization):** Chỉ số mAP@50 trên tập Test đạt **82.5%** (cao hơn cả tập Validation 82.0%), cho thấy mô hình học đúng đặc trưng cốt lõi của chai đạt và lỗi, không bị học vẹt hay overfitting.
-2. **Sẵn sàng triển khai:** Trọng số `conveyor_yolo26_30ep_best.pt` kết hợp pipeline theo vết ByteTrack trong `inference_conveyor.py` đáp ứng đầy đủ yêu cầu kiểm tra và thống kê sản lượng theo thời gian thực.
+### 6.1. Vấn đề khoảng cách miền (Domain Gap / Covariate Shift)
+Trong bài toán thị giác công nghiệp, hiện tượng **"học tốt trên tập dữ liệu lab nhưng giảm hiệu quả khi ra môi trường nhà máy thật"** là thách thức phổ biến do:
+1. **Chiếu sáng & Phản quang:** Bề mặt chai nhựa/thủy tinh phản chiếu ánh đèn nhà xưởng khác với studio chụp mẫu.
+2. **Chuyển động & Nhòe hình (Motion Blur):** Vận tốc băng chuyền thực tế có thể tạo vệt mờ chuyển động nếu màn trập camera (shutter speed) chưa đồng bộ.
+3. **Biến thể sản phẩm mới:** Màu sắc nắp, nhãn mác, hình dáng chai khác biệt so với 2.666 ảnh huấn luyện ban đầu.
+
+### 6.2. Giải pháp kỹ thuật đã triển khai & Khuyến nghị tiếp theo
+* **Cơ chế Multi-frame Voting:** Đã được tích hợp trực tiếp vào `src/conveyorvision/inference_conveyor.py`. Thay vì phán quyết ngay ở frame đầu tiên (dễ nhầm do góc nghiêng hoặc mép ảnh), hệ thống tích lũy lịch sử nhận diện của từng Track ID qua ByteTrack. Chai chỉ được kết luận `DEFECT` khi có $\ge 2$ frame phát hiện lỗi hoặc 1 frame lỗi có độ tự tin cao ($\ge \max(0.5, \text{conf\_thresh})$).
+* **Kế hoạch kiểm định hiện trường:**
+  1. Thu thập 100–200 ảnh hoặc video clip trực tiếp tại vị trí lắp đặt camera thực tế.
+  2. Thực hiện Fine-tuning (Domain Adaptation) 5–10 epochs trên ảnh hiện trường trước khi vận hành tự động cơ cấu gạt/đẩy phế phẩm.
+  3. Đo đạc benchmark FPS trực tiếp trên phần cứng nhúng biên công nghiệp (Edge AI box).

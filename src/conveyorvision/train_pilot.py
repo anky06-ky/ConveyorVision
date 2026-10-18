@@ -46,23 +46,30 @@ def train_pilot(
         print(f"[LỖI] Không tìm thấy file cấu hình: {yaml_path}")
         return None
 
-    # Tự động cập nhật đường dẫn tuyệt đối cho path trong data.yaml để Ultralytics không bị lỗi tương đối
+    # Tạo cấu hình runtime với path tuyệt đối để tránh sửa đổi data/data.yaml gốc trong Git
+    train_yaml_path = yaml_path
     try:
         import yaml
         with open(yaml_path, "r", encoding="utf-8") as f:
             y_data = yaml.safe_load(f) or {}
         data_parent = yaml_path.parent.resolve()
-        y_data["path"] = data_parent.as_posix()
-        with open(yaml_path, "w", encoding="utf-8") as f:
-            yaml.safe_dump(y_data, f, sort_keys=False)
-    except Exception:
-        pass
+        current_path = y_data.get("path")
+        if not current_path or not Path(current_path).is_absolute() or not Path(current_path).exists():
+            y_data["path"] = data_parent.as_posix()
+            runtime_dir = Path("runs")
+            runtime_dir.mkdir(parents=True, exist_ok=True)
+            runtime_yaml = runtime_dir / f"runtime_{yaml_path.name}"
+            with open(runtime_yaml, "w", encoding="utf-8") as f:
+                yaml.safe_dump(y_data, f, sort_keys=False)
+            train_yaml_path = runtime_yaml.resolve()
+    except Exception as e:
+        print(f"[CẢNH BÁO] Không thể tạo file cấu hình runtime ({e}). Dùng file gốc: {yaml_path}")
 
     print("\n=======================================================")
     print("       KHỞI CHẠY HUẤN LUYỆN PILOT CONVEYORVISION        ")
     print("=======================================================")
     print(f"  * Model xuất phát:    {model_name}")
-    print(f"  * Cấu hình data:      {yaml_path}")
+    print(f"  * Cấu hình data:      {train_yaml_path} (nguồn: {yaml_path})")
     print(f"  * Số Epochs:          {epochs}")
     print(f"  * Batch size:         {batch_size} (~106 steps/epoch)")
     print(f"  * Kích thước ảnh:     {imgsz}x{imgsz}")
@@ -74,7 +81,7 @@ def train_pilot(
     model = YOLO(model_name)
 
     results = model.train(
-        data=str(yaml_path),
+        data=str(train_yaml_path),
         epochs=epochs,
         batch=batch_size,
         imgsz=imgsz,

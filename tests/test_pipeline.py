@@ -107,11 +107,28 @@ def test_training_arguments_compatibility():
 
 def test_pipeline_modules_importable():
     """Verify all pipeline modules (video_io, evaluate, inference_conveyor) are importable."""
+    import inspect
     from conveyorvision.evaluate import evaluate_model
     from conveyorvision.inference_conveyor import run_conveyor_inspection
+    from conveyorvision.train_pilot import train_pilot
     from conveyorvision.video_io import extract_frames
 
     assert callable(evaluate_model)
     assert callable(run_conveyor_inspection)
+    assert callable(train_pilot)
     assert callable(extract_frames)
+
+    # Verify run_conveyor_inspection has tracker_config parameter
+    sig = inspect.signature(run_conveyor_inspection)
+    assert "tracker_config" in sig.parameters
+    assert sig.parameters["tracker_config"].default == "bytetrack.yaml"
+
+
+def test_data_yaml_not_overwritten():
+    """Verify that committed data/data.yaml maintains relative 'path: data' and is not modified in-place."""
+    data_yaml = Path(__file__).resolve().parent.parent / "data" / "data.yaml"
+    with open(data_yaml, "r", encoding="utf-8") as f:
+        content = f.read()
+    assert "path: data" in content
+
 

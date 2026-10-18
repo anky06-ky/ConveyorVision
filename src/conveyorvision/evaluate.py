@@ -60,31 +60,37 @@ def evaluate_model(
         print(f"[LỖI] Không tìm thấy file dataset: {yaml_file}")
         return None
 
-    # Tự động đồng bộ path tuyệt đối trong data.yaml
+    # Tạo cấu hình runtime với path tuyệt đối để tránh sửa đổi data/data.yaml gốc trong Git
+    eval_yaml_path = yaml_file
     try:
         import yaml
         with open(yaml_file, "r", encoding="utf-8") as f:
             y_data = yaml.safe_load(f) or {}
         data_parent = yaml_file.parent.resolve()
-        if y_data.get("path") != data_parent.as_posix():
+        current_path = y_data.get("path")
+        if not current_path or not Path(current_path).is_absolute() or not Path(current_path).exists():
             y_data["path"] = data_parent.as_posix()
-            with open(yaml_file, "w", encoding="utf-8") as f:
+            runtime_dir = Path("runs")
+            runtime_dir.mkdir(parents=True, exist_ok=True)
+            runtime_yaml = runtime_dir / f"runtime_{yaml_file.name}"
+            with open(runtime_yaml, "w", encoding="utf-8") as f:
                 yaml.safe_dump(y_data, f, sort_keys=False)
-    except Exception:
-        pass
+            eval_yaml_path = runtime_yaml.resolve()
+    except Exception as e:
+        print(f"[CẢNH BÁO] Không thể tạo file cấu hình runtime ({e}). Dùng file gốc: {yaml_file}")
 
     print("\n" + "=" * 65)
     print("      ĐÁNH GIÁ ĐỘC LẬP MÔ HÌNH CONVEYORVISION (YOLO26)")
     print("=" * 65)
     print(f"  * Model trọng số:    {model_file}")
-    print(f"  * Cấu hình dataset:  {yaml_file}")
+    print(f"  * Cấu hình dataset:  {eval_yaml_path} (nguồn: {yaml_file})")
     print(f"  * Phân tập đánh giá: {split.upper()}")
     print(f"  * Kích thước ảnh:    {imgsz}x{imgsz}")
     print("=" * 65 + "\n")
 
     model = YOLO(str(model_file))
     metrics = model.val(
-        data=str(yaml_file),
+        data=str(eval_yaml_path),
         split=split,
         imgsz=imgsz,
         batch=batch,
