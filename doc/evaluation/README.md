@@ -16,7 +16,7 @@ Báo cáo kết quả huấn luyện và đánh giá thực nghiệm mô hình t
 | **Quy mô tập dữ liệu** | 2.666 ảnh (Train: 1.692, Val: 533, Test: 441) |
 | **Batch size / Image size** | 16 / 640x640 |
 | **Optimizer** | AdamW (`lr=0.001667`, `momentum=0.9`) |
-| **Trọng số phân loại (`cls`)** | `cls=1.2` (tham số thử nghiệm nhằm tăng phạt lỗi phế phẩm khi mất cân bằng lớp; cần ablation đối chứng) |
+| **Trọng số phân loại (`cls`)** | `cls=1.2` (giả thuyết kỹ thuật nhằm tăng hệ số phạt phân loại sai đối với lớp thiểu số; hiệu quả thực sự cần được kiểm chứng qua nghiên cứu triệt tiêu / ablation study có đối chứng với `cls=0.5`) |
 
 ---
 
@@ -46,13 +46,17 @@ Tiến trình đo lường qua các mốc epoch trên tập Validation:
 | `defect` (Lỗi / Phế phẩm) | 36 | 41 | **76.6%** | **85.4%** | **86.2%** | **71.7%** |
 
 > [!NOTE]
-> **Quan sát trên lớp phế phẩm (`defect`):** Mô hình đạt độ nhạy **Recall = 85.4%** và **mAP@50 = 86.2%**. Trọng số phân loại thực nghiệm `cls=1.2` bước đầu cho thấy định hướng tốt trong việc tăng phạt lỗi bỏ sót phế phẩm (False Negative) khi dữ liệu lệch lớp (~10:1). Để khẳng định một cách chặt chẽ về mặt khoa học, thí nghiệm triệt tiêu (ablation study) đối chứng trực tiếp với `cls=0.5` mặc định cần được thực hiện trong giai đoạn tiếp theo.
+> **Phân tích chỉ số Recall vs Ma trận nhầm lẫn cố định (Confusion Matrix @ conf=0.25):**
+> - **Chỉ số Recall = 85.4% (IoU 0.5):** Được tính toán tích hợp trên toàn dải ngưỡng confidence theo chuẩn đánh giá PASCAL VOC/COCO mAP.
+> - **Ma trận nhầm lẫn chuẩn hóa (Normalized Confusion Matrix):** Do Ultralytics trích xuất tại một ngưỡng cứng duy nhất (`conf=0.25`, `iou=0.45`). Tại ngưỡng này, do kích thước mẫu phế phẩm ở tập test rất nhỏ (**chỉ 41 bounding boxes trên 36 ảnh**), khoảng ~41% bounding box defect bị gán nhầm sang `pass` hoặc nền background. Điều này cho thấy mô hình ở ngưỡng cứng 0.25 vẫn có xu hướng thiên vị lớp chiếm đa số (`pass`), và nhấn mạnh tầm quan trọng của cơ chế **Multi-frame Voting & điều chỉnh ngưỡng tin cậy** khi ứng dụng thực tế.
+> - **Về tham số `cls=1.2`:** Đây là tham số giả thuyết thực nghiệm. Không đưa ra khẳng định kết luận rằng `cls=1.2` tối ưu hơn mặc định cho đến khi thực hiện nghiên cứu triệt tiêu (controlled ablation study) với cùng một seed và cùng phân tập.
 
 > [!WARNING]
-> **Lưu ý phương pháp luận — Rủi ro rò rỉ dữ liệu cận trùng (Near-Duplicate Leakage):**
-> Qua kiểm tra đối sánh hàm băm tri giác (perceptual similarity/pHash/SSIM), ghi nhận **khoảng 53–54 cặp ảnh cận trùng** giữa tập Train và tập Test (41 ảnh test có bản sao rất gần trong train, trong đó có **23/36 ảnh test chứa defect**). Nguyên nhân do dữ liệu trích xuất từ chuỗi khung hình video hoặc các phiên bản Roboflow được chia ngẫu nhiên theo ảnh thay vì theo phiên quay (session).
+> **Giới hạn phương pháp luận — Quy mô mẫu nhỏ & Nguy cơ rò rỉ dữ liệu cận trùng (Near-Duplicate Leakage):**
+> 1. **Quy mô mẫu phế phẩm:** Tập test chỉ chứa 41 nhãn `defect` trong 36 bức ảnh (chiếm chưa đầy 4% tổng số bounding box của phân tập test).
+> 2. **Rò rỉ ảnh cận trùng:** Qua kiểm tra đối sánh hàm băm tri giác (perceptual similarity/pHash/SSIM), phát hiện **53–54 cặp ảnh cận trùng** giữa tập Train và tập Test (41 ảnh test có bản sao rất gần trong train, trong đó có **23/36 ảnh test chứa defect**). Nguyên nhân do ảnh trích xuất từ video cùng chuỗi hoặc được gán nhãn ngẫu nhiên từng frame.
 > 
-> Vì vậy, các chỉ số trên tập Test hiện tại nên được hiểu là **ngưỡng trên thực nghiệm (empirical upper bound)** của phân tập benchmark. Để có đánh giá độc lập thực sự phản ánh năng lực tổng quát hóa ngoài môi trường thực tế, bước tiếp theo bắt buộc phải **phân tách lại toàn bộ tập dữ liệu theo từng video clip / phiên sản xuất độc lập (video/session-based split)** và tái đánh giá mô hình.
+> Vì hai yếu tố trên, các kết quả kiểm thử hiện tại được coi là **ngưỡng trên thực nghiệm (empirical upper bound)**, chưa đủ cơ sở để chứng minh năng lực tổng quát hóa độc lập ngoài môi trường nhà xưởng. Để nghiệm thu kỹ thuật, bắt buộc phải **phân tách lại toàn bộ tập dữ liệu theo từng video clip / phiên quay vật lý độc lập (session-based split)**.
 
 ---
 
@@ -79,6 +83,9 @@ Tiến trình đo lường qua các mốc epoch trên tập Validation:
 | Tập Validation (533 ảnh) | Phân Tập Test (441 ảnh) |
 | :---: | :---: |
 | ![Val CM](confusion_matrix_normalized.png) | ![Test CM](test_confusion_matrix_normalized.png) |
+
+> [!NOTE]
+> *Ghi chú về ngưỡng ma trận nhầm lẫn:* Các ma trận nhầm lẫn chuẩn hóa trên được Ultralytics tạo tự động tại một ngưỡng cố định duy nhất là `conf=0.25` và `iou=0.45`. Tại ngưỡng này, với số lượng mẫu defect trong tập test rất ít (41 boxes), 41% số box defect bị gán sang `pass`, phản ánh độ nhạy phân loại của mô hình tại ngưỡng tĩnh 0.25 trước khi áp dụng cơ chế voting theo vết. Điểm này khác biệt với chỉ số **Recall = 85.4%** trong Bảng 3 vốn được tính tổng hợp trên toàn dải ngưỡng của đường cong PR.
 
 ### 5.3. Đường cong Precision - Recall (PR Curve)
 | Tập Validation | Phân Tập Test |

@@ -523,6 +523,12 @@ body {
   border: 1px solid rgba(239, 68, 68, 0.4);
 }
 
+.badge-status.other {
+  background-color: rgba(192, 132, 252, 0.2);
+  color: #c084fc;
+  border: 1px solid rgba(192, 132, 252, 0.45);
+}
+
 .badge-status.inspecting {
   background-color: rgba(245, 158, 11, 0.18);
   color: var(--color-warning);
@@ -620,12 +626,41 @@ body {
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  padding: 0.85rem 1.25rem;
+  padding: 0.9rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin-bottom: 1.25rem;
+}
+
+.controls-row-top {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.controls-row-bottom {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+  padding-top: 0.65rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.controls-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.controls-info-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
   flex-wrap: wrap;
 }
 
@@ -766,6 +801,17 @@ body {
 .mini-kpi-card.defect .val { color: var(--color-defect); }
 .mini-kpi-card.inspecting .val { color: var(--color-warning); }
 .mini-kpi-card.rate .val { color: var(--color-primary-light); }
+
+.mini-kpi-card.other {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-left: 3px solid #c084fc;
+}
+.mini-kpi-card.other .val {
+  color: #c084fc;
+}
 
 .event-log-card {
   flex: 1;
@@ -930,3 +976,4 @@ body {
   justify-content: flex-end;
   gap: 0.5rem;
 }
+

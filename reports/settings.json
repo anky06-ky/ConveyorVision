@@ -1,0 +1,8 @@
+{
+  "tracker": "bytetrack.yaml",
+  "lost_track_buffer": 30,
+  "min_observation_votes": 3,
+  "auto_save_csv": true,
+  "sound_alarm": true,
+  "default_conf": 0.45
+}

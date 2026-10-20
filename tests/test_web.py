@@ -146,3 +146,52 @@ def test_websocket_events(client):
         resp = websocket.receive_text()
         assert resp == "pong"
 
+
+def test_settings_api(client):
+    """Kiểm tra API cấu hình tham số hệ thống."""
+    # Lấy cài đặt
+    res = client.get("/api/settings")
+    assert res.status_code == 200
+    settings = res.json()
+    assert "tracker" in settings
+    assert "lost_track_buffer" in settings
+
+    # Cập nhật cài đặt
+    update_payload = {
+        "tracker": "botsort.yaml",
+        "lost_track_buffer": 40,
+        "min_observation_votes": 4,
+        "auto_save_csv": False,
+        "sound_alarm": False
+    }
+    update_res = client.post("/api/settings", json=update_payload)
+    assert update_res.status_code == 200
+    saved = update_res.json()["settings"]
+    assert saved["tracker"] == "botsort.yaml"
+    assert saved["lost_track_buffer"] == 40
+    assert saved["min_observation_votes"] == 4
+    assert saved["auto_save_csv"] is False
+
+    # Khôi phục cài đặt mặc định
+    client.post("/api/settings", json={"tracker": "bytetrack.yaml", "lost_track_buffer": 30, "min_observation_votes": 3, "auto_save_csv": True, "sound_alarm": True})
+
+
+def test_video_upload_validation(client):
+    """Kiểm tra từ chối các định dạng file không an toàn khi upload."""
+    files = {"file": ("malicious.exe", b"invalid binary content", "application/octet-stream")}
+    res = client.post("/api/upload_video", files=files)
+    assert res.status_code == 400
+    assert "Chỉ hỗ trợ file video" in res.json()["detail"]
+
+
+def test_worker_multi_mode_support():
+    """Kiểm tra worker hỗ trợ chế độ 'bottle_and_other' và 'bottle_inspection'."""
+    worker = InspectionWorker()
+    assert hasattr(worker, "total_other")
+    assert worker.total_other == 0
+    worker.inspection_mode = "bottle_and_other"
+    status = worker.get_status()
+    assert "total_other" in status
+    assert status["total_other"] == 0
+
+

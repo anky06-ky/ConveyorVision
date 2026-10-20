@@ -1,7 +1,9 @@
-"""Quản lý phiên kiểm định và lưu trữ lịch sử ConveyorVision (Session Manager).
+"""Quản lý phiên kiểm định, lưu trữ lịch sử và cấu hình ConveyorVision (Session Manager).
 
 Hỗ trợ:
 - Lưu metadata phiên vào reports/sessions.json
+- Đánh dấu phiên COMPLETED hoặc FAILED khi gặp lỗi (tránh kẹt trạng thái RUNNING)
+- Lưu trữ cấu hình hệ thống reports/settings.json
 - Xuất log chi tiết từng track ra CSV
 - Truy vấn lịch sử phiên, đọc bản ghi chi tiết
 """
@@ -14,18 +16,61 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+DEFAULT_SETTINGS: Dict[str, Any] = {
+    "tracker": "bytetrack.yaml",
+    "lost_track_buffer": 30,
+    "min_observation_votes": 3,
+    "auto_save_csv": True,
+    "sound_alarm": True,
+    "default_conf": 0.45
+}
+
 
 class SessionManager:
     def __init__(self, base_dir: Optional[Path] = None):
         self.base_dir = base_dir or Path("reports").resolve()
         self.base_dir.mkdir(parents=True, exist_ok=True)
         self.sessions_file = self.base_dir / "sessions.json"
-        self._ensure_sessions_file()
+        self.settings_file = self.base_dir / "settings.json"
+        self._ensure_files()
 
-    def _ensure_sessions_file(self) -> None:
+    def _ensure_files(self) -> None:
         if not self.sessions_file.exists():
             with open(self.sessions_file, "w", encoding="utf-8") as f:
                 json.dump([], f, indent=2, ensure_ascii=False)
+        if not self.settings_file.exists():
+            with open(self.settings_file, "w", encoding="utf-8") as f:
+                json.dump(DEFAULT_SETTINGS, f, indent=2, ensure_ascii=False)
+
+    def get_settings(self) -> Dict[str, Any]:
+        try:
+            with open(self.settings_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                res = DEFAULT_SETTINGS.copy()
+                res.update(data)
+                return res
+        except Exception:
+            return DEFAULT_SETTINGS.copy()
+
+    def save_settings(self, new_settings: Dict[str, Any]) -> Dict[str, Any]:
+        current = self.get_settings()
+        # Ép kiểu an toàn
+        if "tracker" in new_settings:
+            current["tracker"] = str(new_settings["tracker"]).strip()
+        if "lost_track_buffer" in new_settings:
+            current["lost_track_buffer"] = max(1, int(new_settings["lost_track_buffer"]))
+        if "min_observation_votes" in new_settings:
+            current["min_observation_votes"] = max(1, int(new_settings["min_observation_votes"]))
+        if "auto_save_csv" in new_settings:
+            current["auto_save_csv"] = bool(new_settings["auto_save_csv"])
+        if "sound_alarm" in new_settings:
+            current["sound_alarm"] = bool(new_settings["sound_alarm"])
+        if "default_conf" in new_settings:
+            current["default_conf"] = round(float(new_settings["default_conf"]), 2)
+
+        with open(self.settings_file, "w", encoding="utf-8") as f:
+            json.dump(current, f, indent=2, ensure_ascii=False)
+        return current
 
     def get_all_sessions(self) -> List[Dict[str, Any]]:
         try:
@@ -68,18 +113,39 @@ class SessionManager:
             "avg_fps": 0.0,
             "csv_file": csv_filename,
             "video_file": "",
-            "tracks": []
+            "tracks": [],
+            "error_message": ""
         }
 
         # Khởi tạo header file CSV
-        with open(csv_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow(["timestamp_s", "track_id", "class_id", "class_name", "confidence", "status"])
+        try:
+            with open(csv_path, "w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow(["timestamp_s", "track_id", "class_id", "class_name", "confidence", "status"])
+        except Exception:
+            pass
 
         sessions = self.get_all_sessions()
         sessions.insert(0, session)
         self.save_sessions(sessions)
         return session
+
+    def fail_session(self, session_id: str, error_message: str) -> Optional[Dict[str, Any]]:
+        """Đánh dấu phiên kiểm định bị lỗi (tránh kẹt trạng thái RUNNING)."""
+        sessions = self.get_all_sessions()
+        target = None
+        for s in sessions:
+            if s.get("session_id") == session_id:
+                now = datetime.now()
+                s["status"] = "FAILED"
+                s["end_time"] = now.strftime("%H:%M:%S %d/%m/%Y")
+                s["error_message"] = str(error_message)
+                target = s
+                break
+
+        if target:
+            self.save_sessions(sessions)
+        return target
 
     def finalize_session(
         self,

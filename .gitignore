@@ -18,6 +18,7 @@ __pycache__/
 raw_videos/
 raw_datasets/
 reports/snapshots/
+reports/*.csv
 data/images/
 data/labels/
 train/

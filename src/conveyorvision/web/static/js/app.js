@@ -1,8 +1,18 @@
 /**
  * ConveyorVision — Single Page Application Frontend Client
  * Xử lý: WebSocket kết nối trực tiếp, cập nhật HUD, bảng nhật ký sự kiện tại chỗ,
- * bộ tổng hợp âm thanh còi báo lỗi (Web Audio API) và điều hướng 6 màn hình.
+ * bộ tổng hợp âm thanh còi báo lỗi (Web Audio API), hỗ trợ đa dạng vật thể và điều hướng 6 màn hình.
  */
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
 class ConveyorVisionApp {
   constructor() {
@@ -18,14 +28,16 @@ class ConveyorVisionApp {
       loopVideo: true
     };
 
-    // Lưu vết các track hiển thị trên bảng nhật ký
-    this.eventRows = new Map(); // trackId -> { rowElement, statusBadge, confElem }
+    // Lưu vết các track hiển thị trên bảng nhật ký: trackId -> { element, statusBadge, typeElem, confElem, timeElem }
+    this.eventRows = new Map();
 
     this.init();
   }
 
   init() {
     this.loadSettings();
+    this.loadSettingsFromServer();
+    this.loadModelsList();
     this.bindNavigation();
     this.bindControls();
     this.bindModals();
@@ -35,7 +47,7 @@ class ConveyorVisionApp {
   }
 
   // ============================================================================
-  // CÀI ĐẶT & LƯU TRỮ CỤC BỘ
+  // CÀI ĐẶT & LƯU TRỮ CỤC BỘ & MÁY CHỦ
   // ============================================================================
   loadSettings() {
     try {
@@ -43,11 +55,11 @@ class ConveyorVisionApp {
       if (saved) {
         this.settings = Object.assign(this.settings, JSON.parse(saved));
       }
-      this.soundEnabled = this.settings.soundAlarm;
+      this.soundEnabled = this.settings.soundAlarm !== false;
       const soundCheck = document.getElementById("sound-alarm-toggle");
       if (soundCheck) soundCheck.checked = this.soundEnabled;
     } catch (e) {
-      console.warn("Không thể tải cài đặt:", e);
+      console.warn("Không thể tải cài đặt cục bộ:", e);
     }
   }
 
@@ -55,7 +67,87 @@ class ConveyorVisionApp {
     try {
       localStorage.setItem("conveyorvision_settings", JSON.stringify(this.settings));
     } catch (e) {
-      console.warn("Không thể lưu cài đặt:", e);
+      console.warn("Không thể lưu cài đặt cục bộ:", e);
+    }
+  }
+
+  async loadSettingsFromServer() {
+    try {
+      const res = await fetch("/api/settings");
+      if (res.ok) {
+        const data = await res.json();
+        const trackerSel = document.getElementById("setting-tracker");
+        const lostBuf = document.getElementById("setting-lost-buffer");
+        const minVotes = document.getElementById("setting-min-votes");
+        const autoCsv = document.getElementById("setting-auto-csv");
+        const soundAlarm = document.getElementById("setting-sound-alarm");
+
+        if (trackerSel && data.tracker) trackerSel.value = data.tracker;
+        if (lostBuf && data.lost_track_buffer !== undefined) lostBuf.value = data.lost_track_buffer;
+        if (minVotes && data.min_observation_votes !== undefined) minVotes.value = data.min_observation_votes;
+        if (autoCsv && data.auto_save_csv !== undefined) autoCsv.checked = !!data.auto_save_csv;
+        if (soundAlarm && data.sound_alarm !== undefined) {
+          soundAlarm.checked = !!data.sound_alarm;
+          this.soundEnabled = !!data.sound_alarm;
+          const liveSound = document.getElementById("sound-alarm-toggle");
+          if (liveSound) liveSound.checked = this.soundEnabled;
+        }
+      }
+    } catch (e) {
+      console.warn("Lỗi nạp cài đặt từ server:", e);
+    }
+  }
+
+  async saveSettingsToServer() {
+    try {
+      const tracker = document.getElementById("setting-tracker")?.value || "bytetrack.yaml";
+      const lost_track_buffer = parseInt(document.getElementById("setting-lost-buffer")?.value) || 30;
+      const min_observation_votes = parseInt(document.getElementById("setting-min-votes")?.value) || 3;
+      const auto_save_csv = !!document.getElementById("setting-auto-csv")?.checked;
+      const sound_alarm = !!document.getElementById("setting-sound-alarm")?.checked;
+
+      this.soundEnabled = sound_alarm;
+      this.settings.soundAlarm = sound_alarm;
+      this.saveSettings();
+
+      const liveSound = document.getElementById("sound-alarm-toggle");
+      if (liveSound) liveSound.checked = sound_alarm;
+
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tracker, lost_track_buffer, min_observation_votes, auto_save_csv, sound_alarm })
+      });
+
+      if (res.ok) {
+        const statusSpan = document.getElementById("settings-save-status");
+        if (statusSpan) {
+          statusSpan.style.display = "inline";
+          setTimeout(() => { statusSpan.style.display = "none"; }, 2500);
+        }
+      } else {
+        alert("Không thể lưu cấu hình lên máy chủ.");
+      }
+    } catch (e) {
+      alert(`Lỗi lưu cấu hình: ${e.message}`);
+    }
+  }
+
+  async loadModelsList() {
+    try {
+      const res = await fetch("/api/models");
+      if (!res.ok) return;
+      const models = await res.json();
+      const select = document.getElementById("model-select");
+      if (!select || !models.length) return;
+
+      select.innerHTML = models.map((m) => {
+        const val = m.path || (m.name.startsWith("yolo") ? m.name : `models/${m.name}`);
+        const selected = m.is_active ? "selected" : "";
+        return `<option value="${escapeHtml(val)}" ${selected}>${escapeHtml(m.name)} (${escapeHtml(m.size_mb)} MB)</option>`;
+      }).join("");
+    } catch (e) {
+      console.warn("Lỗi nạp danh sách model:", e);
     }
   }
 
@@ -89,7 +181,6 @@ class ConveyorVisionApp {
       });
     });
 
-    // Quick action từ màn hình Tổng quan
     const quickStartBtn = document.getElementById("btn-quick-start");
     if (quickStartBtn) {
       quickStartBtn.addEventListener("click", () => {
@@ -102,7 +193,6 @@ class ConveyorVisionApp {
     if (!screenName) return;
     this.currentScreen = screenName;
 
-    // Cập nhật active menu
     document.querySelectorAll(".nav-item").forEach((item) => {
       if (item.getAttribute("data-screen") === screenName) {
         item.classList.add("active");
@@ -111,7 +201,6 @@ class ConveyorVisionApp {
       }
     });
 
-    // Hiển thị view tương ứng
     document.querySelectorAll(".screen-view").forEach((view) => {
       if (view.id === `screen-${screenName}`) {
         view.classList.add("active");
@@ -120,11 +209,11 @@ class ConveyorVisionApp {
       }
     });
 
-    // Nạp dữ liệu đặc thù cho từng màn hình
     if (screenName === "overview") this.loadOverviewData();
     if (screenName === "history") this.loadHistoryData();
     if (screenName === "evaluation") this.loadEvaluationData();
     if (screenName === "dataset") this.loadDatasetData();
+    if (screenName === "settings") this.loadSettingsFromServer();
   }
 
   // ============================================================================
@@ -200,22 +289,20 @@ class ConveyorVisionApp {
         statusText.textContent = "Tạm dừng";
       } else if (state === "ERROR") {
         statusPill.classList.add("error");
-        statusText.textContent = "Có lỗi kết nối";
+        statusText.textContent = status.error_message ? `Lỗi: ${status.error_message.substring(0, 30)}` : "Có lỗi xảy ra";
       } else {
         statusPill.classList.add("idle");
         statusText.textContent = "Sẵn sàng";
       }
     }
 
-    // Cập nhật trạng thái các nút bấm
-    if (btnStart) btnStart.disabled = state === "RUNNING";
+    if (btnStart) btnStart.disabled = (state === "RUNNING");
     if (btnPause) {
-      btnPause.disabled = state === "STOPPED";
+      btnPause.disabled = (state === "STOPPED" || state === "ERROR");
       btnPause.textContent = state === "PAUSED" ? "▶ Tiếp tục" : "⏸ Tạm dừng";
     }
-    if (btnStop) btnStop.disabled = state === "STOPPED";
+    if (btnStop) btnStop.disabled = (state === "STOPPED" || state === "ERROR");
 
-    // Cập nhật thẻ model active trên header
     if (status.model) {
       const modelTag = document.getElementById("active-model-tag");
       if (modelTag) modelTag.textContent = status.model;
@@ -223,35 +310,39 @@ class ConveyorVisionApp {
   }
 
   updateLiveStats(stats) {
-    // Mini KPIs màn hình Live
     const elemFps = document.getElementById("live-fps-val");
     const elemPass = document.getElementById("live-pass-val");
     const elemDefect = document.getElementById("live-defect-val");
+    const elemOther = document.getElementById("live-other-val");
     const elemInspecting = document.getElementById("live-inspecting-val");
     const elemRate = document.getElementById("live-rate-val");
 
-    if (elemFps) elemFps.textContent = stats.fps;
-    if (elemPass) elemPass.textContent = stats.total_pass;
-    if (elemDefect) elemDefect.textContent = stats.total_defect;
-    if (elemInspecting) elemInspecting.textContent = stats.inspecting_count;
-    if (elemRate) elemRate.textContent = `${stats.defect_rate}%`;
+    if (elemFps) elemFps.textContent = stats.fps ?? 0.0;
+    if (elemPass) elemPass.textContent = stats.total_pass ?? 0;
+    if (elemDefect) elemDefect.textContent = stats.total_defect ?? 0;
+    if (elemOther) elemOther.textContent = stats.total_other ?? 0;
+    if (elemInspecting) elemInspecting.textContent = stats.inspecting_count ?? 0;
+    if (elemRate) elemRate.textContent = `${stats.defect_rate ?? 0.0}%`;
 
-    // HUD overlays
     const hudFps = document.getElementById("hud-fps");
     const hudBelt = document.getElementById("hud-belt");
     const hudPass = document.getElementById("hud-pass");
     const hudDefect = document.getElementById("hud-defect");
+    const hudOther = document.getElementById("hud-other");
 
-    if (hudFps) hudFps.textContent = `FPS: ${stats.fps}`;
-    if (hudBelt) hudBelt.textContent = `Đang quét: ${stats.inspecting_count}`;
-    if (hudPass) hudPass.textContent = `PASS: ${stats.total_pass}`;
-    if (hudDefect) hudDefect.textContent = `DEFECT: ${stats.total_defect}`;
+    if (hudFps) hudFps.textContent = `FPS: ${stats.fps ?? 0.0}`;
+    if (hudBelt) hudBelt.textContent = `Đang quét: ${stats.inspecting_count ?? 0}`;
+    if (hudPass) hudPass.textContent = `PASS: ${stats.total_pass ?? 0}`;
+    if (hudDefect) hudDefect.textContent = `DEFECT: ${stats.total_defect ?? 0}`;
+    if (hudOther) hudOther.textContent = `DỊ VẬT: ${stats.total_other ?? 0}`;
 
-    // Cảnh báo cờ Rejection
     const banner = document.getElementById("video-rejection-banner");
     if (banner) {
       if (stats.alert_active) {
         banner.classList.add("active");
+        if (stats.alert_message) {
+          banner.textContent = `⚠️ ${stats.alert_message} (MÔ PHỎNG) ⚠️`;
+        }
       } else {
         banner.classList.remove("active");
       }
@@ -265,21 +356,19 @@ class ConveyorVisionApp {
     const trackId = item.track_id;
     const isCorrection = item.is_update || item.event === "DEFECT_CORRECTION";
 
-    // Kiểm tra xem dòng track này đã có trên bảng chưa
+    // Cập nhật tại chỗ nếu track đã tồn tại
     if (this.eventRows.has(trackId)) {
       const rowData = this.eventRows.get(trackId);
       const row = rowData.element;
 
-      // CẬP NHẬT TẠI CHỖ (In-place Update)
       if (item.status === "DEFECT") {
         rowData.statusBadge.className = "badge-status defect";
-        rowData.statusBadge.innerHTML = `DEFECT <span class="badge-updated">Đã cập nhật kết quả</span>`;
-        rowData.typeElem.textContent = "defect";
+        rowData.statusBadge.innerHTML = `DEFECT <span class="badge-updated">Hiệu chỉnh</span>`;
+        rowData.typeElem.textContent = escapeHtml(item.class_name || "Chai lỗi");
         rowData.typeElem.style.color = "var(--color-defect)";
         rowData.confElem.textContent = item.conf ? Number(item.conf).toFixed(2) : "--";
         rowData.timeElem.textContent = item.timestamp || "--";
 
-        // Hiệu ứng highlight chớp sáng để báo hiệu vừa cập nhật tại chỗ
         row.classList.add("row-updated-highlight");
         setTimeout(() => row.classList.remove("row-updated-highlight"), 1200);
 
@@ -287,12 +376,20 @@ class ConveyorVisionApp {
       } else if (item.status === "PASS") {
         rowData.statusBadge.className = "badge-status pass";
         rowData.statusBadge.textContent = "PASS";
-        rowData.typeElem.textContent = "pass";
+        rowData.typeElem.textContent = escapeHtml(item.class_name || "Chai đạt");
         rowData.typeElem.style.color = "var(--color-pass)";
         rowData.confElem.textContent = item.conf ? Number(item.conf).toFixed(2) : "--";
+      } else if (item.status === "OTHER" || item.category === "OTHER") {
+        rowData.statusBadge.className = "badge-status other";
+        rowData.statusBadge.textContent = "DỊ VẬT";
+        rowData.typeElem.textContent = escapeHtml(item.class_name || "Vật thể khác");
+        rowData.typeElem.style.color = "#c084fc";
+        rowData.confElem.textContent = item.conf ? Number(item.conf).toFixed(2) : "--";
+        row.classList.add("row-updated-highlight");
+        setTimeout(() => row.classList.remove("row-updated-highlight"), 1200);
       }
     } else {
-      // THÊM MỚI DÒNG VÀO ĐẦU BẢNG
+      // Tạo dòng mới
       const row = document.createElement("tr");
 
       let badgeClass = "inspecting";
@@ -303,32 +400,34 @@ class ConveyorVisionApp {
         badgeClass = "defect";
         statusText = "DEFECT";
         typeColor = "var(--color-defect)";
-        if (isCorrection) statusText += ` <span class="badge-updated">Đã cập nhật kết quả</span>`;
+        if (isCorrection) statusText += ` <span class="badge-updated">Hiệu chỉnh</span>`;
       } else if (item.status === "PASS") {
         badgeClass = "pass";
         statusText = "PASS";
         typeColor = "var(--color-pass)";
+      } else if (item.status === "OTHER" || item.category === "OTHER") {
+        badgeClass = "other";
+        statusText = "DỊ VẬT";
+        typeColor = "#c084fc";
       }
 
       const confStr = item.conf ? Number(item.conf).toFixed(2) : "--";
 
       row.innerHTML = `
-        <td style="font-family: var(--font-mono); font-weight: 600;">#${trackId}</td>
-        <td class="cell-time" style="font-size: 0.8rem; color: var(--text-secondary);">${item.timestamp || "--"}</td>
-        <td class="cell-type" style="font-weight: 500; color: ${typeColor};">${item.class_name || "--"}</td>
-        <td class="cell-conf" style="font-family: var(--font-mono);">${confStr}</td>
+        <td style="font-family: var(--font-mono); font-weight: 600;">#${escapeHtml(trackId)}</td>
+        <td class="cell-time" style="font-size: 0.8rem; color: var(--text-secondary);">${escapeHtml(item.timestamp || "--")}</td>
+        <td class="cell-type" style="font-weight: 500; color: ${typeColor};">${escapeHtml(item.class_name || "--")}</td>
+        <td class="cell-conf" style="font-family: var(--font-mono);">${escapeHtml(confStr)}</td>
         <td class="cell-status">
           <span class="badge-status ${badgeClass}">${statusText}</span>
         </td>
       `;
 
-      // Giới hạn bảng lưu tối đa 50 sự kiện gần nhất
       if (tbody.children.length > 50) {
         tbody.removeChild(tbody.lastChild);
       }
       tbody.insertBefore(row, tbody.firstChild);
 
-      // Lưu tham chiếu để cập nhật tại chỗ
       this.eventRows.set(trackId, {
         element: row,
         statusBadge: row.querySelector(".cell-status span"),
@@ -343,6 +442,9 @@ class ConveyorVisionApp {
     const banner = document.getElementById("video-rejection-banner");
     if (banner) {
       banner.classList.add("active");
+      if (payload && payload.message) {
+        banner.textContent = `⚠️ ${payload.message} (MÔ PHỎNG) ⚠️`;
+      }
       setTimeout(() => banner.classList.remove("active"), 1500);
     }
     if (this.soundEnabled) {
@@ -352,7 +454,7 @@ class ConveyorVisionApp {
 
   handleSessionFinished(summary) {
     this.updateSystemStatusUI({ state: "STOPPED" });
-    alert(`🎉 Phiên kiểm định hoàn tất!\n- Tổng kiểm tra: ${summary.total_items}\n- PASS: ${summary.total_pass}\n- DEFECT: ${summary.total_defect}\n- Tỷ lệ lỗi: ${summary.defect_rate}%`);
+    alert(`🎉 Phiên kiểm định hoàn tất!\n- Tổng kiểm tra: ${summary.total_items}\n- PASS: ${summary.total_pass}\n- DEFECT: ${summary.total_defect}\n- DỊ VẬT: ${summary.total_other ?? 0}\n- Tỷ lệ lỗi: ${summary.defect_rate}%`);
     this.loadOverviewData();
   }
 
@@ -369,7 +471,6 @@ class ConveyorVisionApp {
         this.audioContext.resume();
       }
 
-      // Tạo âm còi báo động kép công nghiệp (880Hz -> 440Hz)
       const osc = this.audioContext.createOscillator();
       const gain = this.audioContext.createGain();
 
@@ -400,8 +501,8 @@ class ConveyorVisionApp {
     const btnSnapshot = document.getElementById("btn-snapshot");
     const btnFullscreen = document.getElementById("btn-fullscreen");
     const soundToggle = document.getElementById("sound-alarm-toggle");
+    const btnSaveSettings = document.getElementById("btn-save-settings");
 
-    // Slider ngưỡng confidence
     const confSlider = document.getElementById("conf-slider");
     const confDisplay = document.getElementById("conf-display-val");
     if (confSlider && confDisplay) {
@@ -415,6 +516,26 @@ class ConveyorVisionApp {
         this.soundEnabled = e.target.checked;
         this.settings.soundAlarm = this.soundEnabled;
         this.saveSettings();
+      });
+    }
+
+    const modeSelect = document.getElementById("mode-select");
+    const modeBadge = document.getElementById("active-mode-badge");
+    if (modeSelect && modeBadge) {
+      modeSelect.addEventListener("change", (e) => {
+        if (e.target.value === "bottle_and_other") {
+          modeBadge.textContent = "🍶 Chai & Dị vật khác";
+        } else {
+          modeBadge.textContent = "🔍 QC Chai Đạt / Lỗi";
+        }
+      });
+    }
+
+    const imgszSelect = document.getElementById("imgsz-select");
+    const resBadge = document.getElementById("active-resolution-badge");
+    if (imgszSelect && resBadge) {
+      imgszSelect.addEventListener("change", (e) => {
+        resBadge.textContent = e.target.value === "480" ? "⚡ 480px Fast" : "🎯 640px Chuẩn";
       });
     }
 
@@ -432,6 +553,10 @@ class ConveyorVisionApp {
 
     if (btnSnapshot) {
       btnSnapshot.addEventListener("click", () => this.takeSnapshot());
+    }
+
+    if (btnSaveSettings) {
+      btnSaveSettings.addEventListener("click", () => this.saveSettingsToServer());
     }
 
     if (btnFullscreen) {
@@ -468,6 +593,8 @@ class ConveyorVisionApp {
             opt.selected = true;
             sourceSelect.appendChild(opt);
             alert(`Đã tải lên thành công: ${data.filename}`);
+          } else {
+            alert(`Tải file thất bại: ${data.detail || "Lỗi không xác định"}`);
           }
         } catch (err) {
           alert(`Lỗi khi tải file video: ${err.message}`);
@@ -477,12 +604,13 @@ class ConveyorVisionApp {
   }
 
   async startInspection() {
-    const source = document.getElementById("source-select").value;
-    const model = document.getElementById("model-select").value;
-    const conf = parseFloat(document.getElementById("conf-slider").value) || 0.45;
-    const tracker = document.getElementById("tracker-select").value || "bytetrack.yaml";
+    const source = document.getElementById("source-select")?.value || "raw_videos/conveyor_demo.mp4";
+    const model = document.getElementById("model-select")?.value || "models/conveyor_yolo26_30ep_best.pt";
+    const mode = document.getElementById("mode-select")?.value || "bottle_and_other";
+    const imgsz = parseInt(document.getElementById("imgsz-select")?.value) || 480;
+    const conf = parseFloat(document.getElementById("conf-slider")?.value) || 0.45;
+    const tracker = document.getElementById("tracker-select")?.value || "bytetrack.yaml";
 
-    // Xóa bảng sự kiện cũ
     const tbody = document.getElementById("live-events-tbody");
     if (tbody) tbody.innerHTML = "";
     this.eventRows.clear();
@@ -491,7 +619,7 @@ class ConveyorVisionApp {
       const res = await fetch("/api/start_inspection", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source, model, conf, tracker, loop: true })
+        body: JSON.stringify({ source, model, mode, imgsz, conf, tracker, loop: true })
       });
       const data = await res.json();
       if (!res.ok) {
@@ -499,7 +627,6 @@ class ConveyorVisionApp {
         return;
       }
 
-      // Làm mới luồng stream ảnh video
       const videoImg = document.getElementById("video-stream-feed");
       if (videoImg) {
         videoImg.src = `/api/video_feed?t=${Date.now()}`;
@@ -563,7 +690,6 @@ class ConveyorVisionApp {
 
       this.updateSystemStatusUI(status);
 
-      // Thống kê toàn bộ
       let totalInspectedAll = 0;
       let totalPassAll = 0;
       let totalDefectAll = 0;
@@ -590,7 +716,6 @@ class ConveyorVisionApp {
       if (ovRate) ovRate.textContent = `${avgDefectRate}%`;
       if (ovSessions) ovSessions.textContent = sessions.length;
 
-      // Hiển thị 5 phiên gần nhất
       const tbody = document.getElementById("overview-recent-sessions-tbody");
       if (tbody) {
         if (sessions.length === 0) {
@@ -598,12 +723,12 @@ class ConveyorVisionApp {
         } else {
           tbody.innerHTML = sessions.slice(0, 5).map((s) => `
             <tr>
-              <td style="font-family: var(--font-mono); font-weight: 600;">${s.session_id}</td>
-              <td style="color: var(--text-secondary);">${s.start_time}</td>
-              <td>${s.source}</td>
-              <td style="font-weight: 700;">${s.total_items}</td>
-              <td><span class="badge-status pass">${s.total_pass} PASS</span></td>
-              <td><span class="badge-status defect">${s.total_defect} DEFECT</span></td>
+              <td style="font-family: var(--font-mono); font-weight: 600;">${escapeHtml(s.session_id)}</td>
+              <td style="color: var(--text-secondary);">${escapeHtml(s.start_time)}</td>
+              <td>${escapeHtml(s.source)}</td>
+              <td style="font-weight: 700;">${escapeHtml(s.total_items)}</td>
+              <td><span class="badge-status pass">${escapeHtml(s.total_pass)} PASS</span></td>
+              <td><span class="badge-status defect">${escapeHtml(s.total_defect)} DEFECT</span></td>
             </tr>
           `).join("");
         }
@@ -630,19 +755,19 @@ class ConveyorVisionApp {
 
       tbody.innerHTML = sessions.map((s) => `
         <tr>
-          <td style="font-family: var(--font-mono); font-weight: 600;">${s.session_id}</td>
-          <td>${s.start_time}</td>
-          <td>${s.duration_sec ? `${s.duration_sec}s` : "--"}</td>
-          <td>${s.source}</td>
-          <td style="font-weight: 700;">${s.total_items}</td>
-          <td><span class="badge-status pass">${s.total_pass}</span></td>
-          <td><span class="badge-status defect">${s.total_defect}</span></td>
-          <td style="font-weight: 600; color: ${s.defect_rate > 15 ? 'var(--color-defect)' : 'var(--text-primary)'};">${s.defect_rate}%</td>
+          <td style="font-family: var(--font-mono); font-weight: 600;">${escapeHtml(s.session_id)}</td>
+          <td>${escapeHtml(s.start_time)}</td>
+          <td>${s.duration_sec ? `${escapeHtml(s.duration_sec)}s` : "--"}</td>
+          <td>${escapeHtml(s.source)}</td>
+          <td style="font-weight: 700;">${escapeHtml(s.total_items)}</td>
+          <td><span class="badge-status pass">${escapeHtml(s.total_pass)}</span></td>
+          <td><span class="badge-status defect">${escapeHtml(s.total_defect)}</span></td>
+          <td style="font-weight: 600; color: ${s.defect_rate > 15 ? 'var(--color-defect)' : 'var(--text-primary)'};">${escapeHtml(s.defect_rate)}%</td>
           <td>
             <div style="display: flex; gap: 0.35rem;">
-              <button class="btn btn-secondary" style="padding: 0.25rem 0.55rem; font-size: 0.78rem;" onclick="app.viewSessionDetail('${s.session_id}')">Chi tiết</button>
-              <a href="/api/download_report/${s.session_id}" class="btn btn-primary" style="padding: 0.25rem 0.55rem; font-size: 0.78rem;" download>Tải CSV</a>
-              <button class="btn btn-danger" style="padding: 0.25rem 0.45rem; font-size: 0.78rem;" onclick="app.deleteSession('${s.session_id}')">✕</button>
+              <button class="btn btn-secondary" style="padding: 0.25rem 0.55rem; font-size: 0.78rem;" onclick="app.viewSessionDetail('${escapeHtml(s.session_id)}')">Chi tiết</button>
+              <a href="/api/download_report/${encodeURIComponent(s.session_id)}" class="btn btn-primary" style="padding: 0.25rem 0.55rem; font-size: 0.78rem;" download>Tải CSV</a>
+              <button class="btn btn-danger" style="padding: 0.25rem 0.45rem; font-size: 0.78rem;" onclick="app.deleteSession('${escapeHtml(s.session_id)}')">✕</button>
             </div>
           </td>
         </tr>
@@ -654,7 +779,7 @@ class ConveyorVisionApp {
 
   async viewSessionDetail(sessionId) {
     try {
-      const res = await fetch(`/api/history/${sessionId}`);
+      const res = await fetch(`/api/history/${encodeURIComponent(sessionId)}`);
       const session = await res.json();
       if (!res.ok) return alert("Không tìm thấy thông tin phiên.");
 
@@ -683,13 +808,13 @@ class ConveyorVisionApp {
               <tbody>
                 ${tracks.map((t) => `
                   <tr>
-                    <td style="font-family: var(--font-mono); font-weight: 600;">#${t.track_id}</td>
-                    <td style="font-weight: 500; color: ${t.state === 'DEFECT' ? 'var(--color-defect)' : 'var(--color-pass)'};">${t.class_name}</td>
-                    <td style="font-family: var(--font-mono);">${t.max_conf}</td>
-                    <td>${t.obs_votes} frames</td>
-                    <td>${t.first_ts}s → ${t.last_ts}s</td>
+                    <td style="font-family: var(--font-mono); font-weight: 600;">#${escapeHtml(t.track_id)}</td>
+                    <td style="font-weight: 500; color: ${t.state === 'DEFECT' ? 'var(--color-defect)' : (t.state === 'OTHER' ? '#c084fc' : 'var(--color-pass)')};">${escapeHtml(t.class_name)}</td>
+                    <td style="font-family: var(--font-mono);">${escapeHtml(t.max_conf)}</td>
+                    <td>${escapeHtml(t.obs_votes)} frames</td>
+                    <td>${escapeHtml(t.first_ts)}s → ${escapeHtml(t.last_ts)}s</td>
                     <td>
-                      <span class="badge-status ${t.state.toLowerCase()}">${t.state}</span>
+                      <span class="badge-status ${escapeHtml(t.state.toLowerCase())}">${escapeHtml(t.state)}</span>
                       ${t.was_corrected ? '<span class="badge-updated">Hiệu chỉnh</span>' : ''}
                     </td>
                   </tr>
@@ -703,13 +828,13 @@ class ConveyorVisionApp {
       if (body) {
         body.innerHTML = `
           <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; margin-bottom: 1rem;">
-            <div class="mini-kpi-card"><div class="label">Tổng kiểm tra</div><div class="val">${session.total_items}</div></div>
-            <div class="mini-kpi-card pass"><div class="label">Đạt chuẩn</div><div class="val">${session.total_pass}</div></div>
-            <div class="mini-kpi-card defect"><div class="label">Phế phẩm</div><div class="val">${session.total_defect}</div></div>
-            <div class="mini-kpi-card rate"><div class="label">Tỷ lệ lỗi</div><div class="val">${session.defect_rate}%</div></div>
+            <div class="mini-kpi-card"><div class="label">Tổng kiểm tra</div><div class="val">${escapeHtml(session.total_items)}</div></div>
+            <div class="mini-kpi-card pass"><div class="label">Đạt chuẩn</div><div class="val">${escapeHtml(session.total_pass)}</div></div>
+            <div class="mini-kpi-card defect"><div class="label">Phế phẩm</div><div class="val">${escapeHtml(session.total_defect)}</div></div>
+            <div class="mini-kpi-card rate"><div class="label">Tỷ lệ lỗi</div><div class="val">${escapeHtml(session.defect_rate)}%</div></div>
           </div>
-          <p><strong>Nguồn kiểm định:</strong> ${session.source} | <strong>Model:</strong> ${session.model_name}</p>
-          <p><strong>Bắt đầu:</strong> ${session.start_time} | <strong>Kết thúc:</strong> ${session.end_time || '--'} (${session.duration_sec}s)</p>
+          <p><strong>Nguồn kiểm định:</strong> ${escapeHtml(session.source)} | <strong>Model:</strong> ${escapeHtml(session.model_name)}</p>
+          <p><strong>Bắt đầu:</strong> ${escapeHtml(session.start_time)} | <strong>Kết thúc:</strong> ${escapeHtml(session.end_time || '--')} (${escapeHtml(session.duration_sec)}s)</p>
           ${tracksHtml}
         `;
       }
@@ -723,7 +848,7 @@ class ConveyorVisionApp {
   async deleteSession(sessionId) {
     if (!confirm(`Bạn có chắc muốn xóa lịch sử phiên ${sessionId}?`)) return;
     try {
-      const res = await fetch(`/api/history/${sessionId}`, { method: "DELETE" });
+      const res = await fetch(`/api/history/${encodeURIComponent(sessionId)}`, { method: "DELETE" });
       if (res.ok) {
         this.loadHistoryData();
       } else {
@@ -742,19 +867,18 @@ class ConveyorVisionApp {
       const res = await fetch("/api/evaluation");
       const data = await res.json();
 
-      // Cập nhật bảng chỉ số Test
       const tbody = document.getElementById("eval-metrics-tbody");
       if (tbody && data.test_metrics) {
         const ov = data.test_metrics.overall;
         let html = `
           <tr style="background-color: rgba(2, 132, 199, 0.08); font-weight: 700;">
             <td>Tất cả (Overall)</td>
-            <td>${data.test_metrics.num_images}</td>
-            <td>${data.test_metrics.num_boxes}</td>
-            <td style="color: var(--color-primary-light);">${ov.precision}%</td>
-            <td style="color: var(--color-primary-light);">${ov.recall}%</td>
-            <td style="color: var(--color-pass);">${ov.map50}%</td>
-            <td style="color: var(--color-pass);">${ov.map50_95}%</td>
+            <td>${escapeHtml(data.test_metrics.num_images)}</td>
+            <td>${escapeHtml(data.test_metrics.num_boxes)}</td>
+            <td style="color: var(--color-primary-light);">${escapeHtml(ov.precision)}%</td>
+            <td style="color: var(--color-primary-light);">${escapeHtml(ov.recall)}%</td>
+            <td style="color: var(--color-pass);">${escapeHtml(ov.map50)}%</td>
+            <td style="color: var(--color-pass);">${escapeHtml(ov.map50_95)}%</td>
           </tr>
         `;
 
@@ -762,31 +886,29 @@ class ConveyorVisionApp {
           const isDefect = c.name.includes("defect");
           html += `
             <tr>
-              <td style="font-weight: 600; color: ${isDefect ? 'var(--color-defect)' : 'var(--color-pass)'};">${c.name}</td>
-              <td>${c.images}</td>
-              <td>${c.boxes}</td>
-              <td>${c.precision}%</td>
-              <td>${c.recall}%</td>
-              <td style="font-weight: 700;">${c.map50}%</td>
-              <td>${c.map50_95}%</td>
+              <td style="font-weight: 600; color: ${isDefect ? 'var(--color-defect)' : 'var(--color-pass)'};">${escapeHtml(c.name)}</td>
+              <td>${escapeHtml(c.images)}</td>
+              <td>${escapeHtml(c.boxes)}</td>
+              <td>${escapeHtml(c.precision)}%</td>
+              <td>${escapeHtml(c.recall)}%</td>
+              <td style="font-weight: 700;">${escapeHtml(c.map50)}%</td>
+              <td>${escapeHtml(c.map50_95)}%</td>
             </tr>
           `;
         });
         tbody.innerHTML = html;
       }
 
-      // Benchmark tốc độ
       const speed = data.speed_benchmark;
       const speedContainer = document.getElementById("eval-speed-details");
       if (speedContainer && speed) {
         speedContainer.innerHTML = `
-          <p><strong>Thiết bị đo lường:</strong> ${speed.device}</p>
-          <p><strong>Thời gian tiền xử lý:</strong> ${speed.preprocess_ms} ms/ảnh | <strong>Suy luận (Inference):</strong> ${speed.inference_ms} ms/ảnh | <strong>Hậu xử lý:</strong> ${speed.postprocess_ms} ms/ảnh</p>
-          <p><strong>Tốc độ thực tế đạt được:</strong> <span style="font-size: 1.15rem; font-weight: 700; color: var(--color-pass);">${speed.fps_cpu} FPS (CPU)</span> — Dự kiến: <span style="font-weight: 600; color: var(--color-primary-light);">${speed.fps_gpu_projected}</span></p>
+          <p><strong>Thiết bị đo lường:</strong> ${escapeHtml(speed.device)}</p>
+          <p><strong>Thời gian tiền xử lý:</strong> ${escapeHtml(speed.preprocess_ms)} ms/ảnh | <strong>Suy luận (Inference):</strong> ${escapeHtml(speed.inference_ms)} ms/ảnh | <strong>Hậu xử lý:</strong> ${escapeHtml(speed.postprocess_ms)} ms/ảnh</p>
+          <p><strong>Tốc độ thực tế đạt được:</strong> <span style="font-size: 1.15rem; font-weight: 700; color: var(--color-pass);">${escapeHtml(speed.fps_cpu)} FPS (CPU)</span> — Dự kiến: <span style="font-weight: 600; color: var(--color-primary-light);">${escapeHtml(speed.fps_gpu_projected)}</span></p>
         `;
       }
 
-      // Khởi tạo tab biểu đồ
       this.initChartTabs(data.charts);
     } catch (e) {
       console.warn("Lỗi nạp số liệu đánh giá:", e);
@@ -799,18 +921,18 @@ class ConveyorVisionApp {
     if (!nav || !container || !charts) return;
 
     nav.innerHTML = charts.map((ch, idx) => `
-      <button class="chart-tab-btn ${idx === 0 ? 'active' : ''}" data-chart-id="${ch.id}">
-        ${ch.title.split("(")[0]}
+      <button class="chart-tab-btn ${idx === 0 ? 'active' : ''}" data-chart-id="${escapeHtml(ch.id)}">
+        ${escapeHtml(ch.title.split("(")[0])}
       </button>
     `).join("");
 
     const displayChart = (chart) => {
       container.innerHTML = `
         <div style="margin-bottom: 0.75rem; text-align: left; width: 100%;">
-          <h4 style="font-size: 1rem; color: var(--text-primary);">${chart.title}</h4>
-          <p style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 0.2rem;">${chart.description}</p>
+          <h4 style="font-size: 1rem; color: var(--text-primary);">${escapeHtml(chart.title)}</h4>
+          <p style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 0.2rem;">${escapeHtml(chart.description)}</p>
         </div>
-        <img src="${chart.image_url}" alt="${chart.title}" class="chart-img-preview" onclick="app.openImageZoom('${chart.image_url}', '${chart.title}')" />
+        <img src="${escapeHtml(chart.image_url)}" alt="${escapeHtml(chart.title)}" class="chart-img-preview" onclick="app.openImageZoom('${escapeHtml(chart.image_url)}', '${escapeHtml(chart.title)}')" />
         <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted);">💡 Nhấp vào ảnh để phóng to toàn màn hình</div>
       `;
     };
@@ -841,31 +963,29 @@ class ConveyorVisionApp {
       const ds = await dsRes.json();
       const models = await modelsRes.json();
 
-      // Điền thông tin Dataset
       const dsSplits = document.getElementById("dataset-splits-container");
       if (dsSplits && ds.splits) {
         dsSplits.innerHTML = `
-          <div class="mini-kpi-card"><div class="label">Tập Huấn luyện (Train)</div><div class="val">${ds.splits.train.count} <span style="font-size: 0.9rem; color: var(--text-secondary);">(${ds.splits.train.pct}%)</span></div></div>
-          <div class="mini-kpi-card"><div class="label">Tập Kiểm định (Val)</div><div class="val">${ds.splits.val.count} <span style="font-size: 0.9rem; color: var(--text-secondary);">(${ds.splits.val.pct}%)</span></div></div>
-          <div class="mini-kpi-card"><div class="label">Tập Kiểm thử (Test)</div><div class="val">${ds.splits.test.count} <span style="font-size: 0.9rem; color: var(--text-secondary);">(${ds.splits.test.pct}%)</span></div></div>
-          <div class="mini-kpi-card rate"><div class="label">Tổng số ảnh chuẩn hóa</div><div class="val">${ds.total_images}</div></div>
+          <div class="mini-kpi-card"><div class="label">Tập Huấn luyện (Train)</div><div class="val">${escapeHtml(ds.splits.train.count)} <span style="font-size: 0.9rem; color: var(--text-secondary);">(${escapeHtml(ds.splits.train.pct)}%)</span></div></div>
+          <div class="mini-kpi-card"><div class="label">Tập Kiểm định (Val)</div><div class="val">${escapeHtml(ds.splits.val.count)} <span style="font-size: 0.9rem; color: var(--text-secondary);">(${escapeHtml(ds.splits.val.pct)}%)</span></div></div>
+          <div class="mini-kpi-card"><div class="label">Tập Kiểm thử (Test)</div><div class="val">${escapeHtml(ds.splits.test.count)} <span style="font-size: 0.9rem; color: var(--text-secondary);">(${escapeHtml(ds.splits.test.pct)}%)</span></div></div>
+          <div class="mini-kpi-card rate"><div class="label">Tổng số ảnh chuẩn hóa</div><div class="val">${escapeHtml(ds.total_images)}</div></div>
         `;
       }
 
-      // Điền bảng Checkpoint Models
       const tbody = document.getElementById("models-list-tbody");
       if (tbody) {
         tbody.innerHTML = models.map((m) => `
           <tr style="${m.is_active ? 'background-color: rgba(16, 185, 129, 0.06);' : ''}">
-            <td style="font-weight: 600; font-family: var(--font-mono);">${m.name}</td>
-            <td>${m.size_mb} MB</td>
-            <td>${m.modified}</td>
+            <td style="font-weight: 600; font-family: var(--font-mono);">${escapeHtml(m.name)}</td>
+            <td>${escapeHtml(m.size_mb)} MB</td>
+            <td>${escapeHtml(m.modified)}</td>
             <td>
               ${m.is_active
                 ? '<span class="badge-status pass">Đang hoạt động (Active)</span>'
                 : '<span class="badge-status" style="background: rgba(148, 163, 184, 0.1); color: var(--text-secondary);">Dự phòng / Backup</span>'}
             </td>
-            <td style="font-size: 0.82rem; color: var(--text-secondary);">${m.description}</td>
+            <td style="font-size: 0.82rem; color: var(--text-secondary);">${escapeHtml(m.description)}</td>
           </tr>
         `).join("");
       }
@@ -878,13 +998,11 @@ class ConveyorVisionApp {
   // CÁC HỘP THOẠI (MODALS) & ZOOM ẢNH
   // ============================================================================
   bindModals() {
-    // Nút trợ giúp / thông tin đồ án
     const btnHelp = document.getElementById("btn-help-modal");
     if (btnHelp) {
       btnHelp.addEventListener("click", () => this.openModal("help-modal"));
     }
 
-    // Đóng modal khi bấm nút X hoặc backdrop
     document.querySelectorAll(".modal-close-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         const modal = btn.closest(".modal-backdrop");

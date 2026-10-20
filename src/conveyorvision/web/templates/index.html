@@ -187,26 +187,43 @@
            ==================================================================== -->
       <section class="screen-view" id="screen-live">
         <!-- Control Bar -->
+        <!-- Control Bar -->
         <div class="live-controls-bar">
-          <div class="control-group-left">
+          <!-- Hàng 1: Nguồn, Chế độ kiểm định & Tham số mô hình -->
+          <div class="controls-row-top">
             <div class="form-group">
               <label class="form-label" for="source-select">Nguồn kiểm định</label>
-              <select class="form-select" id="source-select" style="min-width: 190px;">
+              <select class="form-select" id="source-select" style="min-width: 170px;">
                 <option value="raw_videos/conveyor_demo.mp4" selected>🎥 Video Demo (Mô phỏng)</option>
                 <option value="0">📷 Webcam 0 (USB Camera)</option>
               </select>
             </div>
 
             <div class="form-group">
-              <label class="form-label">Tải file video lên</label>
-              <input type="file" id="video-file-upload" accept=".mp4,.avi,.mov" style="font-size: 0.8rem; color: var(--text-secondary); width: 170px;" />
+              <label class="form-label" for="video-file-upload">Tải file video lên</label>
+              <input type="file" id="video-file-upload" accept=".mp4,.avi,.mov,.mkv" style="font-size: 0.8rem; color: var(--text-secondary); width: 160px;" />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="mode-select">Chế độ kiểm định</label>
+              <select class="form-select" id="mode-select" style="min-width: 215px; font-weight: 600; color: var(--color-primary-light);">
+                <option value="bottle_and_other" selected>🍶 Chai & Dị vật khác (Tự quay)</option>
+                <option value="bottle_inspection">🔍 QC Chai Đạt / Lỗi (Chuyên sâu)</option>
+              </select>
             </div>
 
             <div class="form-group">
               <label class="form-label" for="model-select">Checkpoint mô hình</label>
-              <select class="form-select" id="model-select" style="min-width: 190px;">
-                <option value="models/conveyor_yolo26_30ep_best.pt" selected>YOLO26n (30ep Best)</option>
-                <option value="models/yolov8n_pilot_best.pt">YOLOv8n Pilot</option>
+              <select class="form-select" id="model-select" style="min-width: 195px;">
+                <option value="models/conveyor_yolo26_30ep_best.pt">Đang tải danh sách model...</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="imgsz-select">Độ phân giải suy luận</label>
+              <select class="form-select" id="imgsz-select" style="width: 155px;">
+                <option value="480" selected>⚡ 480px (Siêu mượt)</option>
+                <option value="640">🎯 640px (Chuẩn)</option>
               </select>
             </div>
 
@@ -214,23 +231,32 @@
               <label class="form-label" for="conf-slider">
                 Ngưỡng tin cậy (Conf: <span id="conf-display-val">0.45</span>)
               </label>
-              <input type="range" id="conf-slider" min="0.10" max="0.90" step="0.05" value="0.45" style="width: 120px;" />
+              <input type="range" id="conf-slider" min="0.10" max="0.90" step="0.05" value="0.45" style="width: 115px;" />
             </div>
 
             <div class="form-group">
               <label class="form-label" for="tracker-select">Tracker</label>
-              <select class="form-select" id="tracker-select" style="width: 130px;">
+              <select class="form-select" id="tracker-select" style="width: 125px;">
                 <option value="bytetrack.yaml" selected>ByteTrack</option>
                 <option value="botsort.yaml">BoT-SORT</option>
               </select>
             </div>
           </div>
 
-          <div class="control-group-right">
-            <button class="btn btn-success" id="btn-start-inspection">▶ Bắt đầu</button>
-            <button class="btn btn-warning" id="btn-pause-inspection" disabled>⏸ Tạm dừng</button>
-            <button class="btn btn-danger" id="btn-stop-inspection" disabled>⏹ Dừng</button>
-            <button class="btn btn-secondary" id="btn-snapshot" title="Chụp ảnh vi phạm">📸 Chụp</button>
+          <!-- Hàng 2: Các nút điều khiển & Tóm tắt trạng thái -->
+          <div class="controls-row-bottom">
+            <div class="controls-actions">
+              <button class="btn btn-success" id="btn-start-inspection">▶ Bắt đầu kiểm định</button>
+              <button class="btn btn-warning" id="btn-pause-inspection" disabled>⏸ Tạm dừng</button>
+              <button class="btn btn-danger" id="btn-stop-inspection" disabled>⏹ Dừng phiên</button>
+              <button class="btn btn-secondary" id="btn-snapshot" title="Chụp ảnh hiện trường">📸 Chụp hiện trường</button>
+            </div>
+
+            <div class="controls-info-pill" id="controls-info-pill">
+              <span id="active-mode-badge" class="badge-status" style="background: rgba(14, 165, 233, 0.15); color: var(--color-primary-light); border: 1px solid rgba(14, 165, 233, 0.3);">🍶 Chai & Dị vật khác</span>
+              <span id="active-resolution-badge" class="badge-status" style="background: rgba(16, 185, 129, 0.15); color: var(--color-pass); border: 1px solid rgba(16, 185, 129, 0.3);">⚡ 480px Fast</span>
+              <span style="font-size: 0.74rem; color: var(--text-muted);">* Cảnh báo loại bỏ phế phẩm mô phỏng (không cần PLC)</span>
+            </div>
           </div>
         </div>
 
@@ -238,9 +264,9 @@
         <div class="live-workspace">
           <!-- Video Container -->
           <div class="video-container" id="video-viewport-container">
-            <!-- Rejection Alert Banner -->
+            <!-- Rejection Alert Banner (Mô phỏng cảnh báo) -->
             <div class="rejection-banner" id="video-rejection-banner">
-              ⚠️ PHÁT HIỆN PHẾ PHẨM — KÍCH HOẠT CƠ CẤU GẠT LOẠI BỎ (REJECTION TRIGGERED) ⚠️
+              ⚠️ PHÁT HIỆN SẢN PHẨM LỖI / DỊ VẬT — CẢNH BÁO MÔ PHỎNG (Chưa nối relay/PLC) ⚠️
             </div>
 
             <!-- In-Stream HUD Overlays -->
@@ -249,6 +275,7 @@
               <div class="hud-pill" id="hud-belt" style="color: var(--color-warning);">Đang quét: 0</div>
               <div class="hud-pill" id="hud-pass" style="color: var(--color-pass);">PASS: 0</div>
               <div class="hud-pill" id="hud-defect" style="color: var(--color-defect);">DEFECT: 0</div>
+              <div class="hud-pill" id="hud-other" style="color: #c084fc;">DỊ VẬT: 0</div>
             </div>
 
             <img id="video-stream-feed" class="video-feed-img" src="/api/video_feed" alt="Camera Stream" />
@@ -274,6 +301,10 @@
               <div class="mini-kpi-card rate">
                 <div class="label">TỶ LỆ LỖI %</div>
                 <div class="val" id="live-rate-val">0.0%</div>
+              </div>
+              <div class="mini-kpi-card other">
+                <div class="label">VẬT THỂ KHÁC / DỊ VẬT</div>
+                <div class="val" id="live-other-val">0</div>
               </div>
             </div>
 
@@ -494,14 +525,14 @@
 
             <div class="form-group">
               <label class="form-label">Ngưỡng mất dấu trước khi chốt PASS (Lost Frame Buffer)</label>
-              <input type="number" class="form-control" value="30" min="5" max="100" style="max-width: 150px;" />
+              <input type="number" class="form-control" id="setting-lost-buffer" value="30" min="5" max="100" style="max-width: 150px;" />
               <span style="font-size: 0.75rem; color: var(--text-muted);">Số frame camera không nhìn thấy chai trước khi xác nhận chai đã đi qua trạm kiểm tra an toàn.</span>
             </div>
 
             <div class="form-group">
               <label class="form-label">Số frame quan sát tối thiểu (Min Observation Votes)</label>
-              <input type="number" class="form-control" value="3" min="1" max="10" style="max-width: 150px;" />
-              <span style="font-size: 0.75rem; color: var(--text-muted);">Tránh nhiễu phát hiện ở rìa khung hình. Vật thể quan sát dưới 3 frame sẽ bị coi là nhiễu và bỏ qua.</span>
+              <input type="number" class="form-control" id="setting-min-votes" value="3" min="1" max="10" style="max-width: 150px;" />
+              <span style="font-size: 0.75rem; color: var(--text-muted);">Tránh nhiễu phát hiện ở rìa khung hình. Vật thể quan sát dưới số frame này sẽ bị coi là nhiễu và bỏ qua.</span>
             </div>
 
             <div class="form-group">
@@ -518,9 +549,12 @@
               </label>
             </div>
 
-            <button class="btn btn-primary" style="align-self: flex-start; padding: 0.6rem 1.4rem;" onclick="alert('Đã lưu cài đặt cấu hình thành công!')">
-              Lưu cấu hình
-            </button>
+            <div style="display: flex; align-items: center; gap: 1rem; margin-top: 0.5rem;">
+              <button class="btn btn-primary" id="btn-save-settings" style="padding: 0.6rem 1.4rem;">
+                Lưu cấu hình
+              </button>
+              <span id="settings-save-status" style="font-size: 0.82rem; color: var(--color-pass); display: none;">✓ Đã lưu cài đặt</span>
+            </div>
           </div>
         </div>
       </section>
@@ -543,7 +577,10 @@
         <p><strong>ConveyorVision</strong> là giải pháp thị giác máy tính công nghiệp ứng dụng kiến trúc <strong>YOLO26 Nano</strong> và thuật toán <strong>ByteTrack</strong> để nhận diện và phân loại sản phẩm đạt chuẩn / phế phẩm tự động trên băng tải.</p>
         <br>
         <h4 style="color: var(--text-primary); margin-bottom: 0.35rem;">Nguyên lý phán quyết Multi-frame Voting:</h4>
-        <p>Hệ thống không khóa nhãn ngay ở frame đầu tiên để tránh phán quyết nhầm do góc nghiêng hoặc ánh sáng lóa. Khi phát hiện lỗi từ 2 frame hoặc 1 frame có độ tin cậy cao, sản phẩm lập tức chốt nhãn <code>DEFECT</code> vĩnh viễn và kích hoạt cơ cấu gạt loại bỏ.</p>
+        <p>Hệ thống không khóa nhãn ngay ở frame đầu tiên để tránh phán quyết nhầm do góc nghiêng hoặc ánh sáng lóa. Khi phát hiện lỗi từ 2 frame hoặc 1 frame có độ tin cậy cao, sản phẩm lập tức chốt nhãn <code>DEFECT</code> vĩnh viễn và kích hoạt cơ chế báo động.</p>
+        <br>
+        <h4 style="color: var(--text-primary); margin-bottom: 0.35rem;">Mô phỏng cơ cấu gạt phế phẩm (Rejection Simulation):</h4>
+        <p>Giao diện hiện tại phát tín hiệu cảnh báo thị giác trên video stream và còi âm thanh buzzer (Web Audio API) để <strong>mô phỏng cơ cấu loại bỏ phế phẩm</strong>. Khi lắp đặt trên dây chuyền vật lý thực tế, sự kiện này sẽ được chuyển tiếp qua PLC/Relay/GPIO để điều khiển xi-lanh gạt cơ khí.</p>
         <br>
         <h4 style="color: var(--text-primary); margin-bottom: 0.35rem;">Phím tắt & Thao tác:</h4>
         <ul style="margin-left: 1.5rem; margin-top: 0.25rem;">
@@ -589,3 +626,4 @@
   <script src="/static/js/app.js"></script>
 </body>
 </html>
+

@@ -1,1 +1,43 @@
-﻿[]
+[
+  {
+    "session_id": "SES_20261020_104222",
+    "created_at": "2026-10-20T10:42:22.644804",
+    "start_time": "10:42:22 20/10/2026",
+    "end_time": "",
+    "duration_sec": 0,
+    "source": "raw_videos/conveyor_demo.mp4",
+    "model_name": "conveyor_yolo26_30ep_best.pt",
+    "tracker": "bytetrack.yaml",
+    "conf_thresh": 0.45,
+    "status": "RUNNING",
+    "total_items": 0,
+    "total_pass": 0,
+    "total_defect": 0,
+    "defect_rate": 0.0,
+    "avg_fps": 0.0,
+    "csv_file": "inspection_SES_20261020_104222.csv",
+    "video_file": "",
+    "tracks": [],
+    "error_message": ""
+  },
+  {
+    "session_id": "SES_20261019_070510",
+    "created_at": "2026-10-19T07:05:10.827799",
+    "start_time": "07:05:10 19/10/2026",
+    "end_time": "",
+    "duration_sec": 0,
+    "source": "raw_videos/conveyor_demo.mp4",
+    "model_name": "conveyor_yolo26_30ep_best.pt",
+    "tracker": "bytetrack.yaml",
+    "conf_thresh": 0.45,
+    "status": "RUNNING",
+    "total_items": 0,
+    "total_pass": 0,
+    "total_defect": 0,
+    "defect_rate": 0.0,
+    "avg_fps": 0.0,
+    "csv_file": "inspection_SES_20261019_070510.csv",
+    "video_file": "",
+    "tracks": []
+  }
+]
