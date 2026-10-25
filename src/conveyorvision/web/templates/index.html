@@ -86,7 +86,13 @@
           <span>⚡</span> <span id="active-model-tag">conveyor_yolo26_30ep_best.pt</span>
         </div>
         <div class="live-clock" id="live-clock">--:--:--</div>
-        <button class="btn-icon-subtle" id="btn-help-modal" title="Thông tin đồ án & Hướng dẫn">
+        <a href="/api/download_pdf_report" class="btn-header-action btn-header-pdf" download="BaoCao_TongKet_ConveyorVision.pdf" title="Tải toàn văn Báo cáo nghiệm thu kỹ thuật dạng PDF">
+          <span>📥</span> Tải Báo Cáo PDF
+        </a>
+        <button type="button" class="btn-header-action btn-header-guide" id="btn-open-guide-modal" title="Xem cẩm nang hướng dẫn sử dụng giao diện UI/UX">
+          <span>📖</span> Hướng Dẫn UI/UX
+        </button>
+        <button class="btn-icon-subtle" id="btn-help-modal" title="Thông tin đồ án & Giới thiệu">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 16h-2v-2h2v2zm1.07-7.75l-.9.92C12.45 11.9 12 12.5 12 14h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.04-.42 1.99-1.07 2.75z"/></svg>
         </button>
       </div>
@@ -161,9 +167,12 @@
               <p style="font-size: 0.86rem; color: var(--text-secondary); margin-bottom: 1rem;">
                 Khởi động trực tiếp trạm kiểm định để quét sản phẩm trên băng chuyền hoặc nạp video mẫu thử nghiệm.
               </p>
-              <button class="btn btn-primary" id="btn-quick-start" style="width: 100%; padding: 0.75rem; font-size: 0.95rem;">
+              <button class="btn btn-primary" id="btn-quick-start" style="width: 100%; padding: 0.75rem; font-size: 0.95rem; margin-bottom: 0.65rem;">
                 ▶ Chuyển đến Trực tiếp
               </button>
+              <a href="/api/download_pdf_report" class="btn btn-secondary" download="BaoCao_TongKet_ConveyorVision.pdf" style="width: 100%; padding: 0.65rem; font-size: 0.88rem; text-decoration: none; justify-content: center;">
+                📥 Tải Báo Cáo Nghiệm Thu (PDF)
+              </a>
             </div>
 
             <div class="card">
@@ -264,6 +273,12 @@
         <div class="live-workspace">
           <!-- Video Container -->
           <div class="video-container" id="video-viewport-container">
+            <!-- Camera Status HUD Badge -->
+            <div class="video-live-badge">
+              <div class="video-live-dot"></div>
+              <span>TRỰC TIẾP • 30 FPS</span>
+            </div>
+
             <!-- Rejection Alert Banner (Mô phỏng cảnh báo) -->
             <div class="rejection-banner" id="video-rejection-banner">
               ⚠️ PHÁT HIỆN SẢN PHẨM LỖI / DỊ VẬT — CẢNH BÁO MÔ PHỎNG (Chưa nối relay/PLC) ⚠️
@@ -308,13 +323,14 @@
               </div>
             </div>
 
-            <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.25rem 0.5rem;">
-              <label class="alarm-sound-toggle">
-                <input type="checkbox" id="sound-alarm-toggle" checked />
-                <span>🔊 Còi báo phế phẩm (Web Audio)</span>
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.4rem 0.65rem; background: var(--bg-card); border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+              <label class="switch-toggle-label">
+                <input type="checkbox" class="switch-toggle-input" id="sound-alarm-toggle" checked />
+                <span class="switch-toggle-slider"></span>
+                <span style="font-size: 0.82rem; font-weight: 500;">🔊 Còi báo lỗi (Buzzer)</span>
               </label>
-              <div style="font-size: 0.75rem; color: var(--text-muted);">
-                Tốc độ: <strong id="live-fps-val" style="color: var(--text-primary);">0.0</strong> FPS
+              <div style="font-size: 0.76rem; color: var(--text-muted);">
+                Tốc độ: <strong id="live-fps-val" style="color: var(--color-primary-light);">0.0</strong> FPS
               </div>
             </div>
 
@@ -619,6 +635,122 @@
       </div>
       <div style="position: absolute; top: 15px; left: 20px; color: #fff; font-weight: 600; font-size: 1rem;" id="image-zoom-title">Biểu đồ đánh giá</div>
       <img id="image-zoom-img" src="" alt="Enlarged Chart" style="max-width: 90vw; max-height: 85vh; object-fit: contain;" />
+    </div>
+  </div>
+
+  <!-- Modal Cẩm Nang Hướng Dẫn Sử Dụng UI/UX Tương Tác -->
+  <div class="modal-backdrop" id="uiux-guide-modal">
+    <div class="modal-dialog" style="max-width: 860px; max-height: 90vh;">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 0.65rem;">
+          <span style="font-size: 1.3rem;">📖</span>
+          <div>
+            <h3 style="font-size: 1.1rem; color: var(--text-primary); font-weight: 700;">Cẩm Nang Hướng Dẫn Vận Hành UI/UX</h3>
+            <span style="font-size: 0.74rem; color: var(--color-primary-light);">ConveyorVision Version 2.0 • Industrial HMI Standard</span>
+          </div>
+        </div>
+        <button class="btn-icon-subtle modal-close-btn">✕</button>
+      </div>
+
+      <!-- Navigation Tabs inside Guide -->
+      <div class="guide-tabs-nav" id="guide-tabs-nav">
+        <button class="guide-tab-btn active" data-guide-tab="quickstart">🚀 Khởi chạy nhanh</button>
+        <button class="guide-tab-btn" data-guide-tab="livemode">🎥 Chế độ kiểm định</button>
+        <button class="guide-tab-btn" data-guide-tab="settings">⚙️ Cài đặt & Tham số</button>
+        <button class="guide-tab-btn" data-guide-tab="metrics">📊 Đọc hiểu chỉ số</button>
+        <button class="guide-tab-btn" data-guide-tab="troubleshooting">🛠️ Sự cố & Phím tắt</button>
+      </div>
+
+      <div class="modal-body" style="padding: 1.25rem 1.5rem;">
+        <!-- Tab 1: Khởi chạy nhanh -->
+        <div class="guide-pane active" id="guide-pane-quickstart">
+          <h4 style="color: var(--color-primary-light); margin-bottom: 0.5rem;">3 Bước Khởi Chạy Nhanh Trạm Kiểm Định:</h4>
+          <ol style="margin-left: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.88rem;">
+            <li><strong>Chọn nguồn hình ảnh:</strong> Tại màn hình <em>Kiểm định trực tiếp</em>, chọn <code>Video Demo</code>, <code>Webcam 0</code>, hoặc bấm nút <strong>Choose File</strong> để nạp video tự quay (.mp4/.avi/.mov).</li>
+            <li><strong>Chọn Chế độ kiểm định:</strong> Nếu dùng video tự quay có nhiều đồ vật xung quanh, hãy chọn <code>🍶 Chai & Dị vật khác (Tự quay)</code> để hệ thống tự động nhận diện chai (viền xanh) và phân tách các vật thể khác (viền tím).</li>
+            <li><strong>Bấm ▶ Bắt đầu kiểm định:</strong> Hệ thống kích hoạt camera và suy luận với tốc độ 22–25 FPS (&lt; 50ms latency). Bấm <strong>📸 Chụp</strong> để lưu hiện trường vi phạm, bấm <strong>⏹ Dừng</strong> để chốt phiên và lưu báo cáo.</li>
+          </ol>
+          <div style="margin-top: 1rem; padding: 0.75rem 1rem; background: rgba(2, 132, 199, 0.12); border-left: 3px solid var(--color-primary); border-radius: var(--radius-sm); font-size: 0.82rem;">
+            💡 <strong>Mẹo chuyên gia:</strong> Giữ độ phân giải ở mức <strong>⚡ 480px (Siêu mượt)</strong> để CPU vận hành nhẹ nhàng, mượt mà và không bị giật lag.
+          </div>
+        </div>
+
+        <!-- Tab 2: Chế độ kiểm định -->
+        <div class="guide-pane" id="guide-pane-livemode">
+          <h4 style="color: var(--color-primary-light); margin-bottom: 0.5rem;">Phân Biệt 2 Chế Độ Kiểm Định Cốt Lõi:</h4>
+          <table class="data-table" style="margin-bottom: 1rem;">
+            <thead>
+              <tr>
+                <th>Chế độ</th>
+                <th>Đối tượng nhận diện</th>
+                <th>Màu sắc HUD</th>
+                <th>Mục đích sử dụng</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>🍶 Chai & Dị vật khác</strong></td>
+                <td>Chai lọ vs Vật thể lạ (cốc, hộp, lon, điện thoại, sách...)</td>
+                <td><span style="color: var(--color-pass);">Xanh lá</span> (Chai)<br><span style="color: var(--color-other);">Tím hồng</span> (Dị vật)</td>
+                <td>Video tự quay bằng điện thoại, kiểm định hỗn hợp đa vật thể.</td>
+              </tr>
+              <tr>
+                <td><strong>🔍 QC Chai Đạt / Lỗi</strong></td>
+                <td>Chai đạt chuẩn (`PASS`) vs Chai khuyết tật (`DEFECT`)</td>
+                <td><span style="color: var(--color-pass);">Xanh lá</span> (PASS)<br><span style="color: var(--color-defect);">Đỏ</span> (DEFECT)</td>
+                <td>Dây chuyền chuẩn, phát hiện nắp lệch, rách nhãn, vơi mức nước.</td>
+              </tr>
+            </tbody>
+          </table>
+          <p style="font-size: 0.84rem; color: var(--text-secondary);">
+            <strong>Nguyên tắc Temporal Voting:</strong> Hệ thống không khóa nhãn ở 1 frame đơn lẻ. Lỗi chỉ được chốt khi thấy &ge; 2 frame hoặc 1 frame có độ tự tin cao (&ge; 0.50).
+          </p>
+        </div>
+
+        <!-- Tab 3: Cài đặt & Tham số -->
+        <div class="guide-pane" id="guide-pane-settings">
+          <h4 style="color: var(--color-primary-light); margin-bottom: 0.5rem;">Ý Nghĩa Các Tham Số Kỹ Thuật (Tab Cài Đặt):</h4>
+          <ul style="margin-left: 1.25rem; display: flex; flex-direction: column; gap: 0.6rem; font-size: 0.86rem;">
+            <li><strong>Ngưỡng mất dấu (Lost Frame Buffer = 30):</strong> Số frame camera không nhìn thấy chai trước khi xác nhận chai đã đi qua trạm kiểm tra an toàn và chốt nhãn PASS.</li>
+            <li><strong>Số vote quan sát tối thiểu (Min Observation Votes = 3):</strong> Loại bỏ nhiễu phát hiện ở rìa mép khung hình camera.</li>
+            <li><strong>Ngưỡng tin cậy (Conf Slider = 0.45):</strong> Tăng lên (0.50–0.70) để giảm phát hiện nhầm; giảm xuống (0.30–0.40) để nhạy hơn với vết lỗi mờ.</li>
+            <li><strong>Tự động xuất CSV:</strong> Tự động ghi chép dữ liệu từng mili-giây vào thư mục <code>reports/</code> phục vụ kiểm toán ISO/HACCP.</li>
+          </ul>
+        </div>
+
+        <!-- Tab 4: Đọc hiểu chỉ số -->
+        <div class="guide-pane" id="guide-pane-metrics">
+          <h4 style="color: var(--color-primary-light); margin-bottom: 0.5rem;">Đọc Hiểu Chỉ Số Đánh Giá Mô Hình:</h4>
+          <p style="font-size: 0.86rem; margin-bottom: 0.6rem;">
+            Đánh giá trên 441 ảnh kiểm thử độc lập (1.032 Bounding Boxes):
+          </p>
+          <ul style="margin-left: 1.25rem; display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.86rem;">
+            <li><strong>mAP@50 = 82.5%:</strong> Độ chính xác trung bình toàn diện của hệ thống.</li>
+            <li><strong>Recall Phế phẩm = 85.4%:</strong> Tỷ lệ bắt trúng chai lỗi (cực kỳ quan trọng để không lọt phế phẩm).</li>
+            <li><strong>Lưu ý về Ma trận nhầm lẫn (@ conf=0.25):</strong> Tại ngưỡng cắt tĩnh 0.25, mô hình có xu hướng thiên vị lớp chiếm đa số (pass), do đó hệ thống bắt buộc phải áp dụng cơ chế <em>Multi-frame Voting</em> theo thời gian thực để chốt nhãn chuẩn xác.</li>
+          </ul>
+        </div>
+
+        <!-- Tab 5: Xử lý sự cố -->
+        <div class="guide-pane" id="guide-pane-troubleshooting">
+          <h4 style="color: var(--color-primary-light); margin-bottom: 0.5rem;">Khắc Phục Nhanh & Phím Tắt Tiện Ích:</h4>
+          <ul style="margin-left: 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.86rem; margin-bottom: 1rem;">
+            <li><strong>Không có âm thanh còi:</strong> Nhấp chuột vào trang web để kích hoạt quyền Autoplay của trình duyệt.</li>
+            <li><strong>Stream bị giật:</strong> Chuyển độ phân giải về <code>⚡ 480px</code>.</li>
+            <li><strong>Vật dụng khác bị báo đỏ:</strong> Chuyển sang chế độ <code>🍶 Chai & Dị vật khác</code>.</li>
+          </ul>
+          <h5 style="color: var(--text-primary); margin-bottom: 0.4rem;">Phím tắt:</h5>
+          <p style="font-size: 0.84rem; color: var(--text-secondary);">
+            • <strong>ESC:</strong> Đóng tất cả cửa sổ Modal.<br>
+            • <strong>⛶ Phóng to:</strong> Xem video kiểm định toàn màn hình.
+          </p>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <a href="/api/download_pdf_report" class="btn btn-primary" download="BaoCao_TongKet_ConveyorVision.pdf">📥 Tải Báo Cáo PDF</a>
+        <button class="btn btn-secondary modal-close-btn">Đóng</button>
+      </div>
     </div>
   </div>
 

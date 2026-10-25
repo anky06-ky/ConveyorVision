@@ -366,6 +366,32 @@ async def download_report(session_id: str):
     )
 
 
+@app.get("/api/download_pdf_report")
+async def download_pdf_report():
+    """Tải về bản báo cáo nghiệm thu kỹ thuật định dạng PDF hoàn chỉnh của dự án."""
+    pdf_path = REPO_ROOT / "doc" / "BAO_CAO_TONG_KET_CONVEYORVISION.pdf"
+    if not pdf_path.exists():
+        try:
+            import importlib.util
+            gen_script = REPO_ROOT / "scripts" / "generate_pdf_report.py"
+            if gen_script.exists():
+                spec = importlib.util.spec_from_file_location("generate_pdf_report", str(gen_script))
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                mod.build_pdf(str(pdf_path))
+        except Exception as e:
+            logger.error(f"Lỗi sinh báo cáo PDF: {e}")
+
+    if not pdf_path.exists():
+        raise HTTPException(status_code=404, detail="Không tìm thấy file báo cáo PDF tổng kết")
+
+    return FileResponse(
+        path=str(pdf_path),
+        filename="BaoCao_TongKet_ConveyorVision.pdf",
+        media_type="application/pdf"
+    )
+
+
 # ==============================================================================
 # 6. REST API - ĐÁNH GIÁ MÔ HÌNH (MODEL EVALUATION)
 # ==============================================================================

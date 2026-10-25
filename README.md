@@ -158,3 +158,111 @@ Theo tiêu chuẩn quản lý mã nguồn Git và cấu hình [`.gitignore`](.gi
 
 
 
+\\\
+
+## 🔧 Phát triển & Đóng góp
+
+### Cài đặt môi trường phát triển
+
+\\\ash
+# Clone repository
+git clone https://github.com/anky06-ky/ConveyorVision.git
+cd ConveyorVision
+
+# Tạo virtual environment
+python -m venv .venv
+.venv\Scripts\activate     # Windows
+source .venv/bin/activate  # Linux/Mac
+
+# Cài đặt dependencies
+pip install -r requirements.txt
+
+# Cài đặt package ở chế độ development
+pip install -e ".[dev]"
+\\\
+
+### Cấu hình Environment Variables
+
+1. Copy \.env.example\ thành \.env\:
+   \\\ash
+   cp .env.example .env   # Linux/Mac
+   copy .env.example .env # Windows
+   \\\
+
+2. Cập nhật \ROBOFLOW_API_KEY\ nếu cần download dataset tự động
+
+### Chạy Tests
+
+\\\ash
+# Chạy tất cả tests
+pytest tests/ -v
+
+# Chạy với coverage report
+pytest tests/ -v --cov=conveyorvision --cov-report=html
+
+# Xem coverage report
+# Mở htmlcov/index.html trong trình duyệt
+\\\
+
+### Code Quality
+
+\\\ash
+# Format code với Black
+black src/ tests/
+
+# Kiểm tra với Flake8
+flake8 src/ tests/ --max-line-length=100
+
+# Type checking với MyPy
+mypy src/conveyorvision --ignore-missing-imports
+\\\
+
+### Đóng góp
+
+Xem hướng dẫn chi tiết tại [CONTRIBUTING.md](CONTRIBUTING.md)
+
+## 📦 Cài đặt như Python Package
+
+Project có thể được cài đặt như một Python package chuẩn:
+
+\\\ash
+# Từ PyPI (sau khi publish)
+pip install conveyorvision
+
+# Hoặc từ source
+git clone https://github.com/anky06-ky/ConveyorVision.git
+cd ConveyorVision
+pip install -e .
+\\\
+
+Sau khi cài đặt, có thể sử dụng các CLI commands:
+
+\\\ash
+# Huấn luyện mô hình
+conveyor-train --epochs 30 --batch 16
+
+# Đánh giá mô hình
+conveyor-eval --split test
+
+# Chạy kiểm định
+conveyor-inspect --source raw_videos/demo.mp4
+
+# Khởi chạy Web Dashboard
+conveyor-web --port 8000
+\\\
+
+## 📄 License
+
+Dự án được phân phối dưới MIT License. Xem [LICENSE](LICENSE) để biết thêm chi tiết.
+
+## 🙏 Credits
+
+- **YOLO26** by [Ultralytics](https://github.com/ultralytics/ultralytics)
+- **Dataset** từ [Roboflow](https://roboflow.com)
+- **ByteTrack** cho Object Tracking
+
+---
+
+Made with ❤️ by **ConveyorVision Team**
+
+[![GitHub stars](https://img.shields.io/github/stars/anky06-ky/ConveyorVision.svg?style=social&label=Star)](https://github.com/anky06-ky/ConveyorVision)

@@ -1003,6 +1003,29 @@ class ConveyorVisionApp {
       btnHelp.addEventListener("click", () => this.openModal("help-modal"));
     }
 
+    const btnGuide = document.getElementById("btn-open-guide-modal");
+    if (btnGuide) {
+      btnGuide.addEventListener("click", () => this.openModal("uiux-guide-modal"));
+    }
+
+    // Tab switcher bên trong Modal Hướng Dẫn UI/UX
+    const guideNav = document.getElementById("guide-tabs-nav");
+    if (guideNav) {
+      guideNav.querySelectorAll(".guide-tab-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          guideNav.querySelectorAll(".guide-tab-btn").forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+          const tabKey = btn.getAttribute("data-guide-tab");
+          document.querySelectorAll(".guide-pane").forEach((pane) => {
+            pane.classList.remove("active");
+          });
+          const targetPane = document.getElementById(`guide-pane-${tabKey}`);
+          if (targetPane) targetPane.classList.add("active");
+        });
+      });
+    }
+
+    // Đóng modal khi bấm nút X hoặc backdrop
     document.querySelectorAll(".modal-close-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         const modal = btn.closest(".modal-backdrop");
@@ -1014,6 +1037,13 @@ class ConveyorVisionApp {
       backdrop.addEventListener("click", (e) => {
         if (e.target === backdrop) backdrop.classList.remove("open");
       });
+    });
+
+    // Phím tắt ESC để đóng nhanh mọi Modal
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        document.querySelectorAll(".modal-backdrop.open").forEach((m) => m.classList.remove("open"));
+      }
     });
   }
 

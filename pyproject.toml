@@ -1,0 +1,105 @@
+﻿[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "conveyorvision"
+version = "2.0.0"
+description = "Hệ thống phân loại sản phẩm trên băng chuyền sử dụng YOLO26"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+authors = [
+    {name = "ConveyorVision Team", email = "contact@conveyorvision.com"}
+]
+keywords = ["yolo", "object-detection", "computer-vision", "quality-control", "conveyor-belt"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+]
+
+dependencies = [
+    "ultralytics==8.4.175",
+    "opencv-python==5.0.0.93",
+    "roboflow==1.7.1",
+    "matplotlib==3.11.2",
+    "seaborn==0.13.2",
+    "pandas>=2.2.3",
+    "pyyaml==6.0.3",
+    "fastapi==0.143.0",
+    "uvicorn==0.54.0",
+    "python-multipart==0.0.32",
+    "jinja2==3.1.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==8.3.4",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "mypy>=1.0.0",
+]
+
+[project.scripts]
+conveyor-train = "conveyorvision.train_pilot:main"
+conveyor-eval = "conveyorvision.evaluate:main"
+conveyor-inspect = "conveyorvision.inference_conveyor:main"
+conveyor-web = "run_app:main"
+
+[project.urls]
+Homepage = "https://github.com/anky06-ky/ConveyorVision"
+Documentation = "https://github.com/anky06-ky/ConveyorVision#readme"
+Repository = "https://github.com/anky06-ky/ConveyorVision.git"
+Issues = "https://github.com/anky06-ky/ConveyorVision/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+conveyorvision = ["web/templates/*.html", "web/static/**/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+norecursedirs = [".venv", "data", "runs", "raw_datasets", "raw_videos", "doc", "tools"]
+
+[tool.black]
+line-length = 100
+target-version = ["py39", "py310", "py311", "py312"]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | data
+  | runs
+)/
+'''
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true

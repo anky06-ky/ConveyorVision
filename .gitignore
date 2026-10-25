@@ -44,3 +44,7 @@ runs/
 
 # 7. Giữ lại các thư mục rỗng qua .gitkeep
 !*/.gitkeep
+
+# Binary installers
+*.exe
+vc_redist*.exe
