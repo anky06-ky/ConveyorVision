@@ -764,3 +764,4 @@ def build_pdf(filename="doc/HUONG_DAN_SU_DUNG_UI_UX.pdf"):
 if __name__ == "__main__":
     out_pdf = build_pdf()
     sys.stdout.buffer.write(f"PDF UI/UX Guide generated: {out_pdf}\n".encode("utf-8"))
+
