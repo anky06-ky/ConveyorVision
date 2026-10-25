@@ -392,6 +392,32 @@ async def download_pdf_report():
     )
 
 
+@app.get("/api/download_pdf_uiux")
+async def download_pdf_uiux():
+    """Tải về tài liệu hướng dẫn sử dụng giao diện và vận hành UI/UX định dạng PDF."""
+    pdf_path = REPO_ROOT / "doc" / "HUONG_DAN_SU_DUNG_UI_UX.pdf"
+    if not pdf_path.exists():
+        try:
+            import importlib.util
+            gen_script = REPO_ROOT / "scripts" / "generate_pdf_uiux.py"
+            if gen_script.exists():
+                spec = importlib.util.spec_from_file_location("generate_pdf_uiux", str(gen_script))
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                mod.build_pdf(str(pdf_path))
+        except Exception as e:
+            logger.error(f"Lỗi sinh cẩm nang UI/UX PDF: {e}")
+
+    if not pdf_path.exists():
+        raise HTTPException(status_code=404, detail="Không tìm thấy file cẩm nang UI/UX PDF")
+
+    return FileResponse(
+        path=str(pdf_path),
+        filename="HuongDan_SuDung_UIUX_ConveyorVision.pdf",
+        media_type="application/pdf"
+    )
+
+
 # ==============================================================================
 # 6. REST API - ĐÁNH GIÁ MÔ HÌNH (MODEL EVALUATION)
 # ==============================================================================

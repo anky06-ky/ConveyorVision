@@ -233,3 +233,13 @@ def test_download_pdf_report_api(client):
     assert "BaoCao_TongKet_ConveyorVision.pdf" in res.headers.get("content-disposition", "")
     assert len(res.content) > 100000
 
+
+def test_download_pdf_uiux_api(client):
+    """Kiểm tra API tải cẩm nang hướng dẫn sử dụng UI/UX dạng PDF."""
+    res = client.get("/api/download_pdf_uiux")
+    assert res.status_code == 200
+    assert res.headers["content-type"] == "application/pdf"
+    assert "HuongDan_SuDung_UIUX_ConveyorVision.pdf" in res.headers.get("content-disposition", "")
+    assert len(res.content) > 50000
+
+

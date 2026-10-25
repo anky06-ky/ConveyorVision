@@ -87,10 +87,13 @@
         </div>
         <div class="live-clock" id="live-clock">--:--:--</div>
         <a href="/api/download_pdf_report" class="btn-header-action btn-header-pdf" download="BaoCao_TongKet_ConveyorVision.pdf" title="Tải toàn văn Báo cáo nghiệm thu kỹ thuật dạng PDF">
-          <span>📥</span> Tải Báo Cáo PDF
+          <span>📥</span> Báo Cáo PDF
         </a>
-        <button type="button" class="btn-header-action btn-header-guide" id="btn-open-guide-modal" title="Xem cẩm nang hướng dẫn sử dụng giao diện UI/UX">
-          <span>📖</span> Hướng Dẫn UI/UX
+        <a href="/api/download_pdf_uiux" class="btn-header-action btn-header-pdf" download="HuongDan_SuDung_UIUX_ConveyorVision.pdf" title="Tải Cẩm nang hướng dẫn sử dụng giao diện UI/UX dạng PDF" style="border-color: rgba(139, 92, 246, 0.4); background: rgba(139, 92, 246, 0.15); color: #c4b5fd;">
+          <span>📘</span> Cẩm Nang UI/UX (PDF)
+        </a>
+        <button type="button" class="btn-header-action btn-header-guide" id="btn-open-guide-modal" title="Xem cẩm nang hướng dẫn sử dụng giao diện UI/UX trực tuyến">
+          <span>📖</span> Hướng Dẫn Online
         </button>
         <button class="btn-icon-subtle" id="btn-help-modal" title="Thông tin đồ án & Giới thiệu">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 16h-2v-2h2v2zm1.07-7.75l-.9.92C12.45 11.9 12 12.5 12 14h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.04-.42 1.99-1.07 2.75z"/></svg>
@@ -170,8 +173,11 @@
               <button class="btn btn-primary" id="btn-quick-start" style="width: 100%; padding: 0.75rem; font-size: 0.95rem; margin-bottom: 0.65rem;">
                 ▶ Chuyển đến Trực tiếp
               </button>
-              <a href="/api/download_pdf_report" class="btn btn-secondary" download="BaoCao_TongKet_ConveyorVision.pdf" style="width: 100%; padding: 0.65rem; font-size: 0.88rem; text-decoration: none; justify-content: center;">
+              <a href="/api/download_pdf_report" class="btn btn-secondary" download="BaoCao_TongKet_ConveyorVision.pdf" style="width: 100%; padding: 0.65rem; font-size: 0.88rem; text-decoration: none; justify-content: center; margin-bottom: 0.45rem;">
                 📥 Tải Báo Cáo Nghiệm Thu (PDF)
+              </a>
+              <a href="/api/download_pdf_uiux" class="btn btn-secondary" download="HuongDan_SuDung_UIUX_ConveyorVision.pdf" style="width: 100%; padding: 0.65rem; font-size: 0.88rem; text-decoration: none; justify-content: center;">
+                📘 Tải Cẩm Nang Vận Hành UI/UX (PDF)
               </a>
             </div>
 
@@ -747,8 +753,9 @@
         </div>
       </div>
 
-      <div class="modal-footer">
-        <a href="/api/download_pdf_report" class="btn btn-primary" download="BaoCao_TongKet_ConveyorVision.pdf">📥 Tải Báo Cáo PDF</a>
+      <div class="modal-footer" style="display: flex; gap: 0.6rem; justify-content: flex-end; align-items: center; flex-wrap: wrap;">
+        <a href="/api/download_pdf_report" class="btn btn-secondary" download="BaoCao_TongKet_ConveyorVision.pdf" style="font-size: 0.85rem;">📥 Báo Cáo Kỹ Thuật (PDF)</a>
+        <a href="/api/download_pdf_uiux" class="btn btn-primary" download="HuongDan_SuDung_UIUX_ConveyorVision.pdf" style="font-size: 0.85rem;">📘 Tải Cẩm Nang UI/UX (PDF)</a>
         <button class="btn btn-secondary modal-close-btn">Đóng</button>
       </div>
     </div>

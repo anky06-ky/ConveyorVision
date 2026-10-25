@@ -20,7 +20,7 @@ conveyorvision/
     train_pilot.py             # script huấn luyện pilot qua CLI
     evaluate.py                # đánh giá độc lập mô hình trên tập test/val
     inference_conveyor.py      # pipeline kiểm định & đếm sản phẩm thời gian thực
-  tools/                       # các script tiện ích định dạng báo cáo Word/Markdown
+  scripts/                     # script tự động tạo 2 bản báo cáo PDF chuyên nghiệp (ReportLab)
   models/                      # file .pt tối ưu sau khi train
   tests/                       # bộ unit test tự động (pytest)
   reports/                     # log kết quả kiểm định CSV và báo cáo

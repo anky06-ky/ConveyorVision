@@ -182,3 +182,4 @@ Giao diện **ConveyorVision** được thiết kế theo chuẩn **HMI (Human-M
 ---
 
 *Tài liệu này được biên soạn bởi Đội ngũ Phát triển ConveyorVision — Cập nhật cùng phiên bản Web Dashboard 2.0.0.*
+
