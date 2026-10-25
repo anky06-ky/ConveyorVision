@@ -418,6 +418,32 @@ async def download_pdf_uiux():
     )
 
 
+@app.get("/api/download_pdf_master")
+async def download_pdf_master():
+    """Tải về tài liệu kỹ thuật toàn diện và kiến trúc hệ thống ConveyorVision định dạng PDF."""
+    pdf_path = REPO_ROOT / "doc" / "TAI_LIEU_TOAN_DIEN_DO_AN_CONVEYORVISION.pdf"
+    if not pdf_path.exists():
+        try:
+            import importlib.util
+            gen_script = REPO_ROOT / "scripts" / "generate_master_doc_pdf.py"
+            if gen_script.exists():
+                spec = importlib.util.spec_from_file_location("generate_master_doc_pdf", str(gen_script))
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                mod.build_pdf(str(pdf_path))
+        except Exception as e:
+            logger.error(f"Lỗi sinh tài liệu toàn diện PDF: {e}")
+
+    if not pdf_path.exists():
+        raise HTTPException(status_code=404, detail="Không tìm thấy file tài liệu kỹ thuật toàn diện PDF")
+
+    return FileResponse(
+        path=str(pdf_path),
+        filename="TaiLieu_ToanDien_DoAn_ConveyorVision.pdf",
+        media_type="application/pdf"
+    )
+
+
 # ==============================================================================
 # 6. REST API - ĐÁNH GIÁ MÔ HÌNH (MODEL EVALUATION)
 # ==============================================================================

@@ -243,3 +243,13 @@ def test_download_pdf_uiux_api(client):
     assert len(res.content) > 50000
 
 
+def test_download_pdf_master_api(client):
+    """Kiểm tra API tải tài liệu kỹ thuật toàn diện đồ án dạng PDF."""
+    res = client.get("/api/download_pdf_master")
+    assert res.status_code == 200
+    assert res.headers["content-type"] == "application/pdf"
+    assert "TaiLieu_ToanDien_DoAn_ConveyorVision.pdf" in res.headers.get("content-disposition", "")
+    assert len(res.content) > 100000
+
+
+
