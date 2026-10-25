@@ -771,3 +771,4 @@ def build_pdf(filename="doc/TAI_LIEU_TOAN_DIEN_DO_AN_CONVEYORVISION.pdf"):
 if __name__ == "__main__":
     out_pdf = build_pdf()
     sys.stdout.buffer.write(f"Master Documentation PDF generated: {out_pdf}\n".encode("utf-8"))
+

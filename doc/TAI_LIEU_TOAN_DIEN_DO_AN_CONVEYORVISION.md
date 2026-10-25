@@ -493,3 +493,4 @@ ConveyorVision/
 * **HMI (Human-Machine Interface):** Giao diện tương tác người và máy móc trong tự động hóa công nghiệp.
 * **FSM (Finite State Machine):** Cỗ máy trạng thái hữu hạn, điều khiển sự chuyển đổi giữa các trạng thái rời rạc của một thực thể.
 * **Near-Duplicate Data:** Hiện tượng các mẫu dữ liệu trong tập huấn luyện và tập kiểm thử gần như giống hệt nhau về nội dung thị giác, gây sai lệch tính khách quan khi nghiệm thu mô hình.
+
