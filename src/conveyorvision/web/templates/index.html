@@ -87,10 +87,13 @@
         </div>
         <div class="live-clock" id="live-clock">--:--:--</div>
         <a href="/api/download_pdf_report" class="btn-header-action btn-header-pdf" download="BaoCao_TongKet_ConveyorVision.pdf" title="Tải toàn văn Báo cáo nghiệm thu kỹ thuật dạng PDF">
-          <span>📥</span> Báo Cáo PDF
+          <span>📥</span> Báo Cáo Kỹ Thuật
         </a>
         <a href="/api/download_pdf_uiux" class="btn-header-action btn-header-pdf" download="HuongDan_SuDung_UIUX_ConveyorVision.pdf" title="Tải Cẩm nang hướng dẫn sử dụng giao diện UI/UX dạng PDF" style="border-color: rgba(139, 92, 246, 0.4); background: rgba(139, 92, 246, 0.15); color: #c4b5fd;">
-          <span>📘</span> Cẩm Nang UI/UX (PDF)
+          <span>📘</span> Cẩm Nang UI/UX
+        </a>
+        <a href="/api/download_pdf_handbook" class="btn-header-action btn-header-pdf" download="ConveyorVision_Toan_Tap_A_Den_Z.pdf" title="Tải Cẩm nang toàn diện toàn tập A đến Z về dự án dạng PDF (dành cho người mới)" style="border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.15); color: #6ee7b7;">
+          <span>📗</span> Toàn Tập A–Z
         </a>
         <button type="button" class="btn-header-action btn-header-guide" id="btn-open-guide-modal" title="Xem cẩm nang hướng dẫn sử dụng giao diện UI/UX trực tuyến">
           <span>📖</span> Hướng Dẫn Online
@@ -173,14 +176,14 @@
               <button class="btn btn-primary" id="btn-quick-start" style="width: 100%; padding: 0.75rem; font-size: 0.95rem; margin-bottom: 0.65rem;">
                 ▶ Chuyển đến Trực tiếp
               </button>
-              <a href="/api/download_pdf_master" class="btn btn-secondary" download="TaiLieu_ToanDien_DoAn_ConveyorVision.pdf" style="width: 100%; padding: 0.65rem; font-size: 0.88rem; text-decoration: none; justify-content: center; margin-bottom: 0.45rem; border-color: rgba(14, 165, 233, 0.4); color: #38bdf8;">
-                📚 Tải Tài Liệu Toàn Diện Đồ Án (PDF)
-              </a>
               <a href="/api/download_pdf_report" class="btn btn-secondary" download="BaoCao_TongKet_ConveyorVision.pdf" style="width: 100%; padding: 0.65rem; font-size: 0.88rem; text-decoration: none; justify-content: center; margin-bottom: 0.45rem;">
                 📥 Tải Báo Cáo Nghiệm Thu (PDF)
               </a>
-              <a href="/api/download_pdf_uiux" class="btn btn-secondary" download="HuongDan_SuDung_UIUX_ConveyorVision.pdf" style="width: 100%; padding: 0.65rem; font-size: 0.88rem; text-decoration: none; justify-content: center;">
+              <a href="/api/download_pdf_uiux" class="btn btn-secondary" download="HuongDan_SuDung_UIUX_ConveyorVision.pdf" style="width: 100%; padding: 0.65rem; font-size: 0.88rem; text-decoration: none; justify-content: center; margin-bottom: 0.45rem;">
                 📘 Tải Cẩm Nang Vận Hành UI/UX (PDF)
+              </a>
+              <a href="/api/download_pdf_handbook" class="btn btn-secondary" download="ConveyorVision_Toan_Tap_A_Den_Z.pdf" style="width: 100%; padding: 0.65rem; font-size: 0.88rem; text-decoration: none; justify-content: center; border-color: rgba(16, 185, 129, 0.4); color: #6ee7b7;">
+                📗 Tải Cẩm Nang Toàn Tập A–Z (PDF)
               </a>
             </div>
 
@@ -757,9 +760,9 @@
       </div>
 
       <div class="modal-footer" style="display: flex; gap: 0.6rem; justify-content: flex-end; align-items: center; flex-wrap: wrap;">
-        <a href="/api/download_pdf_master" class="btn btn-secondary" download="TaiLieu_ToanDien_DoAn_ConveyorVision.pdf" style="font-size: 0.85rem; border-color: rgba(14, 165, 233, 0.4); color: #38bdf8;" title="Tải tài liệu kỹ thuật toàn diện và kiến trúc hệ thống dạng PDF">📚 Tài Liệu Toàn Diện (PDF)</a>
         <a href="/api/download_pdf_report" class="btn btn-secondary" download="BaoCao_TongKet_ConveyorVision.pdf" style="font-size: 0.85rem;">📥 Báo Cáo Kỹ Thuật (PDF)</a>
-        <a href="/api/download_pdf_uiux" class="btn btn-primary" download="HuongDan_SuDung_UIUX_ConveyorVision.pdf" style="font-size: 0.85rem;">📘 Tải Cẩm Nang UI/UX (PDF)</a>
+        <a href="/api/download_pdf_uiux" class="btn btn-secondary" download="HuongDan_SuDung_UIUX_ConveyorVision.pdf" style="font-size: 0.85rem; border-color: rgba(139, 92, 246, 0.4); color: #c4b5fd;">📘 Cẩm Nang UI/UX (PDF)</a>
+        <a href="/api/download_pdf_handbook" class="btn btn-primary" download="ConveyorVision_Toan_Tap_A_Den_Z.pdf" style="font-size: 0.85rem; border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.25); color: #6ee7b7;">📗 Toàn Tập A–Z (PDF)</a>
         <button class="btn btn-secondary modal-close-btn">Đóng</button>
       </div>
     </div>

@@ -418,6 +418,32 @@ async def download_pdf_uiux():
     )
 
 
+@app.get("/api/download_pdf_handbook")
+async def download_pdf_handbook():
+    """Tải về bộ cẩm nang toàn diện toàn tập A đến Z về dự án định dạng PDF."""
+    pdf_path = REPO_ROOT / "doc" / "CONVEYORVISION_TOAN_TAP_A_DEN_Z.pdf"
+    if not pdf_path.exists():
+        try:
+            import importlib.util
+            gen_script = REPO_ROOT / "scripts" / "generate_pdf_handbook.py"
+            if gen_script.exists():
+                spec = importlib.util.spec_from_file_location("generate_pdf_handbook", str(gen_script))
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                mod.build_pdf(str(pdf_path))
+        except Exception as e:
+            logger.error(f"Lỗi sinh cẩm nang toàn tập PDF: {e}")
+
+    if not pdf_path.exists():
+        raise HTTPException(status_code=404, detail="Không tìm thấy file cẩm nang toàn tập PDF")
+
+    return FileResponse(
+        path=str(pdf_path),
+        filename="ConveyorVision_Toan_Tap_A_Den_Z.pdf",
+        media_type="application/pdf"
+    )
+
+
 @app.get("/api/download_pdf_master")
 async def download_pdf_master():
     """Tải về tài liệu kỹ thuật toàn diện và kiến trúc hệ thống ConveyorVision định dạng PDF."""
@@ -432,14 +458,14 @@ async def download_pdf_master():
                 spec.loader.exec_module(mod)
                 mod.build_pdf(str(pdf_path))
         except Exception as e:
-            logger.error(f"Lỗi sinh tài liệu toàn diện PDF: {e}")
+            logger.error(f"Lỗi sinh tài liệu kỹ thuật toàn diện PDF: {e}")
 
     if not pdf_path.exists():
         raise HTTPException(status_code=404, detail="Không tìm thấy file tài liệu kỹ thuật toàn diện PDF")
 
     return FileResponse(
         path=str(pdf_path),
-        filename="TaiLieu_ToanDien_DoAn_ConveyorVision.pdf",
+        filename="TaiLieu_KyThuat_ToanDien_ConveyorVision.pdf",
         media_type="application/pdf"
     )
 
