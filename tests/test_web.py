@@ -2,8 +2,10 @@
 
 import json
 import sys
+import threading
 from pathlib import Path
 
+import cv2
 import pytest
 from fastapi.testclient import TestClient
 
@@ -259,6 +261,149 @@ def test_download_pdf_master_api(client):
     assert res.headers["content-type"] == "application/pdf"
     assert "TaiLieu_KyThuat_ToanDien_ConveyorVision.pdf" in res.headers.get("content-disposition", "")
     assert len(res.content) > 100000
+
+
+# ==============================================================================
+# REGRESSION: DEADLOCK KHI LOCK KHÔNG REENTRANT
+# ==============================================================================
+def _run_with_timeout(fn, timeout=5.0):
+    """Chạy fn trong thread riêng, trả về (kết quả, có treo hay không)."""
+    box = {}
+    th = threading.Thread(target=lambda: box.update(result=fn()), daemon=True)
+    th.start()
+    th.join(timeout=timeout)
+    return box.get("result"), th.is_alive()
+
+
+def test_worker_pause_resume_do_not_deadlock():
+    """pause()/resume() gọi get_status() khi đang giữ lock nên lock phải reentrant."""
+    worker = InspectionWorker()
+    worker.state = "RUNNING"
+
+    res, hung = _run_with_timeout(worker.pause)
+    assert not hung, "worker.pause() bị deadlock"
+    assert res["success"] is True
+    assert worker.state == "PAUSED"
+
+    res, hung = _run_with_timeout(worker.resume)
+    assert not hung, "worker.resume() bị deadlock"
+    assert res["success"] is True
+    assert worker.state == "RUNNING"
+
+
+def test_worker_start_error_path_does_not_deadlock():
+    """Nhánh báo lỗi của start() cũng gọi get_status() khi đang giữ lock."""
+    worker = InspectionWorker()
+    worker._resolve_model_file = lambda *a, **k: None
+
+    res, hung = _run_with_timeout(lambda: worker.start(source="missing_video.mp4"))
+    assert not hung, "worker.start() bị deadlock"
+    assert res["success"] is False
+    assert worker.state == "ERROR"
+
+
+def test_start_inspection_api_does_not_hang(client, monkeypatch):
+    """POST /api/start_inspection không được treo vĩnh viễn server."""
+    from conveyorvision.web import server as server_module
+
+    monkeypatch.setattr(server_module.worker, "_resolve_model_file", lambda *a, **k: None)
+    res, hung = _run_with_timeout(
+        lambda: client.post("/api/start_inspection", json={"source": "missing_video.mp4"})
+    )
+    assert not hung, "POST /api/start_inspection bị deadlock"
+    assert res.status_code == 400
+    assert "Không tìm thấy" in res.json()["detail"]
+
+    server_module.worker.state = "STOPPED"
+    server_module.worker.error_message = ""
+
+
+def test_run_loop_finalizes_session_without_csv_crash(tmp_path, monkeypatch):
+    """Regression: finally của _run_loop phải ghi track chốt cuối TRƯỚC khi đóng CSV.
+
+    Trước đây CSV bị đóng trước rồi mới ghi -> ValueError (I/O on closed file),
+    thread chết và phiên kẹt vĩnh viễn ở trạng thái RUNNING.
+    """
+    import types
+
+    import numpy as np
+
+    import conveyorvision.web.worker as worker_module
+    from conveyorvision.web.session_manager import SessionManager
+
+    class FakeBox:
+        def __init__(self, cls_id, conf, track_id):
+            self.cls = np.array([[cls_id]])
+            self.conf = np.array([[conf]])
+            self.xyxy = np.array([[10, 10, 50, 50]])
+            self.id = np.array([[track_id]])
+
+    class FakeResult:
+        def __init__(self, boxes):
+            self.boxes = boxes
+
+    class FakeModel:
+        names = {0: "pass", 1: "defect"}
+
+        def __init__(self, path):
+            pass
+
+        def track(self, *args, **kwargs):
+            return [FakeResult([FakeBox(0, 0.7, 1)])]
+
+    class FakeCap:
+        def __init__(self, source):
+            self._frames_left = 5
+
+        def isOpened(self):
+            return True
+
+        def get(self, prop):
+            return {
+                cv2.CAP_PROP_FRAME_WIDTH: 640,
+                cv2.CAP_PROP_FRAME_HEIGHT: 480,
+                cv2.CAP_PROP_FPS: 25.0,
+            }.get(prop, 0)
+
+        def read(self):
+            if self._frames_left <= 0:
+                return False, None
+            self._frames_left -= 1
+            return True, np.zeros((480, 640, 3), dtype=np.uint8)
+
+        def set(self, *args):
+            return False
+
+        def release(self):
+            pass
+
+    fake_ultralytics = types.ModuleType("ultralytics")
+    fake_ultralytics.YOLO = FakeModel
+    monkeypatch.setitem(sys.modules, "ultralytics", fake_ultralytics)
+    monkeypatch.setattr(cv2, "VideoCapture", FakeCap)
+
+    monkeypatch.setattr(worker_module, "session_manager", SessionManager(base_dir=tmp_path))
+
+    worker = worker_module.InspectionWorker()
+    video_path = tmp_path / "fake.mp4"
+    video_path.write_bytes(b"dummy")
+    worker._resolve_model_file = lambda *a, **k: video_path
+
+    worker.start(source=str(video_path), model_path="fake.pt", inspection_mode="bottle_inspection")
+    assert worker._thread is not None
+    worker._thread.join(timeout=15)
+    assert not worker._thread.is_alive(), "_run_loop bị treo"
+
+    assert worker.state == "STOPPED"
+    session = worker_module.session_manager.get_session(worker.current_session_id)
+    assert session is not None and session["status"] == "COMPLETED"
+    assert session["total_items"] == 1
+
+    csv_path = worker_module.session_manager.get_session_csv_path(worker.current_session_id)
+    assert csv_path is not None and csv_path.exists()
+    rows = csv_path.read_text(encoding="utf-8").strip().splitlines()
+    assert len(rows) >= 2, "CSV phải có header và ít nhất một dòng PASS chốt cuối"
+    assert any("PASS" in row for row in rows[1:])
 
 
 

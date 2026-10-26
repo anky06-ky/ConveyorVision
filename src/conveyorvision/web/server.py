@@ -154,8 +154,17 @@ def mjpeg_frame_generator():
                 lambda: worker._frame_seq != last_seq or worker.state == "STOPPED",
                 timeout=0.25
             )
-            last_seq = worker._frame_seq
+            seq = worker._frame_seq
             frame_bytes = worker.latest_jpeg
+
+        if seq != last_seq:
+            last_seq = seq
+        elif frame_bytes:
+            # Không có khung hình mới: gửi lại frame cuối với nhịp chậm để giữ kết nối,
+            # tránh quay vòng vô hạn (hàng chục MB/s) khi hệ thống đã dừng.
+            time.sleep(0.5)
+        else:
+            continue
 
         if frame_bytes:
             yield (
@@ -239,7 +248,7 @@ async def update_settings(req: SettingsUpdateRequest):
 
 
 @app.post("/api/start_inspection")
-async def start_inspection(req: StartInspectionRequest):
+def start_inspection(req: StartInspectionRequest):
     res = worker.start(
         source=req.source,
         model_path=req.model,
@@ -258,7 +267,7 @@ async def start_inspection(req: StartInspectionRequest):
 
 
 @app.post("/api/pause_inspection")
-async def pause_inspection():
+def pause_inspection():
     res = worker.pause()
     if not res.get("success"):
         raise HTTPException(status_code=400, detail=res.get("message"))
@@ -266,7 +275,7 @@ async def pause_inspection():
 
 
 @app.post("/api/resume_inspection")
-async def resume_inspection():
+def resume_inspection():
     res = worker.resume()
     if not res.get("success"):
         raise HTTPException(status_code=400, detail=res.get("message"))
@@ -274,7 +283,7 @@ async def resume_inspection():
 
 
 @app.post("/api/stop_inspection")
-async def stop_inspection():
+def stop_inspection():
     res = worker.stop()
     return res
 

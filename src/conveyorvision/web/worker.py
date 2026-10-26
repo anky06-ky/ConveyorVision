@@ -62,7 +62,8 @@ class InspectionWorker:
         self._thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
         self._pause_event = threading.Event()
-        self._lock = threading.Lock()
+        # RLock vì get_status()/start()/pause()/resume() gọi lại nhau khi đang giữ lock
+        self._lock = threading.RLock()
 
         # Đồng bộ luồng MJPEG không độ trễ
         self._frame_cond = threading.Condition()
@@ -562,7 +563,9 @@ class InspectionWorker:
                             th = self.track_history[track_id]
                             th["last_seen_frame"] = self.frame_idx
                             th["last_seen_ts"] = curr_ts
-                            th["display_name"] = display_name
+                            # Nhãn chỉ cập nhật khi track chưa chốt trạng thái, tránh lệch nhãn với state
+                            if th["state"] == "INSPECTING":
+                                th["display_name"] = display_name
                             if conf > th["max_conf"]:
                                 th["max_conf"] = conf
 
@@ -571,6 +574,7 @@ class InspectionWorker:
                                 th["category"] = "OTHER"
                                 if th["other_votes"] >= 2 and th["state"] != "OTHER":
                                     th["state"] = "OTHER"
+                                    th["display_name"] = display_name
                                     if not th["logged"]:
                                         th["logged"] = True
                                         th["logged_status"] = "OTHER"
@@ -594,6 +598,7 @@ class InspectionWorker:
                                         was_pass = (th.get("logged_status") == "PASS")
                                         th["state"] = "DEFECT"
                                         th["category"] = "BOTTLE_DEFECT"
+                                        th["display_name"] = display_name
                                         th["logged"] = True
                                         th["logged_status"] = "DEFECT"
                                         th["was_corrected"] = was_pass
@@ -730,12 +735,6 @@ class InspectionWorker:
             return
         finally:
             cap.release()
-            if csv_file:
-                try:
-                    csv_file.flush()
-                    csv_file.close()
-                except Exception:
-                    pass
 
             if self.state != "ERROR":
                 for tid, th in self.track_history.items():
@@ -800,6 +799,14 @@ class InspectionWorker:
                 })
                 self._broadcast("status_changed", self.get_status())
                 logger.info(f"Đã hoàn thành phiên: {self.current_session_id}")
+
+            # Đóng CSV sau khi đã ghi xong các track chốt cuối (tránh I/O on closed file)
+            if csv_file:
+                try:
+                    csv_file.flush()
+                    csv_file.close()
+                except Exception:
+                    pass
 
 
 # Singleton instance
