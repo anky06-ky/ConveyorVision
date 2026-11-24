@@ -69,36 +69,9 @@ def run_conveyor_inspection(
 
     model_file = Path(model_path).resolve()
     if not model_file.exists():
-        candidate_fallbacks = [
-            Path("models/conveyor_qc_yolo26n.pt").resolve(),
-            Path("runs/train/conveyor_yolo26_30/weights/best.pt").resolve(),
-            Path("runs/detect/runs/train/conveyor_yolo26_30/weights/best.pt").resolve(),
-            Path("runs/pilot/pilot_test/weights/best.pt").resolve(),
-            Path("runs/detect/runs/pilot/pilot_test/weights/best.pt").resolve(),
-            Path("runs/pilot/pilot_run/weights/best.pt").resolve(),
-            Path("runs/train/conveyor_yolo26_30/weights/last.pt").resolve(),
-            Path("runs/detect/runs/train/conveyor_yolo26_30/weights/last.pt").resolve(),
-            Path("runs/pilot/pilot_test/weights/last.pt").resolve(),
-            Path("weights/best.pt").resolve()
-        ]
-        if Path("runs").exists():
-            candidate_fallbacks.extend(sorted(Path("runs").rglob("best.pt"), key=lambda p: p.stat().st_mtime, reverse=True))
-            candidate_fallbacks.extend(sorted(Path("runs").rglob("last.pt"), key=lambda p: p.stat().st_mtime, reverse=True))
-        found_fallback = next((p for p in candidate_fallbacks if p.exists()), None)
-        if found_fallback:
-            print(f"[INFO] Không tìm thấy {model_file}, sử dụng checkpoint: {found_fallback}")
-            model_file = found_fallback
-        else:
-            print(f"[LỖI] Không tìm thấy file model: {model_file}")
-            print("💡 Gợi ý: File trọng số (*.pt) không được lưu trên Git theo .gitignore.")
-            print("   Bạn có thể tạo trọng số bằng cách:")
-            print("     1. Chạy notebook notebooks/ConveyorVision_YOLO_Training.ipynb trên Google Colab GPU (~7.7 phút)")
-            print("     2. Hoặc chạy CLI: python src/conveyorvision/train_pilot.py --epochs 30")
-            print("     3. Hoặc tải file weights về và đặt vào models/conveyor_qc_yolo26n.pt")
-            return None
+        print(f"[LỖI] Không tìm thấy checkpoint: {model_file}. Chỉ định đúng file --model.")
+        return None
 
-    # Khởi tạo mô hình YOLO26
-    print(f"[INFO] Nạp mô hình YOLO26: {model_file}...")
     model = YOLO(str(model_file))
 
     # Mở nguồn video (Webcam int hoặc file path)
@@ -168,7 +141,7 @@ def run_conveyor_inspection(
                 frame,
                 persist=True,
                 tracker=tracker_config,
-                conf=conf_thresh,
+                conf=min(conf_thresh, 0.1),
                 verbose=False
             )
             has_defect_in_frame = False
@@ -180,6 +153,13 @@ def run_conveyor_inspection(
                     conf = float(box.conf[0].item())
                     x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
                     track_id = int(box.id[0].item()) if box.id is not None else -1
+
+                    if conf < conf_thresh:
+                        existing = track_history.get(track_id)
+                        if existing is not None:
+                            existing["last_seen_frame"] = frame_idx
+                            existing["last_seen_ts"] = curr_ts
+                        continue
 
                     # Cơ chế Multi-frame Voting: Cập nhật tích lũy nhãn quan sát cho từng track ID
                     if track_id != -1:
