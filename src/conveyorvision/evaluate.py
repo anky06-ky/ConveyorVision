@@ -8,6 +8,7 @@ Sử dụng:
 """
 
 import argparse
+import hashlib
 import json
 import platform
 import shutil
@@ -41,33 +42,8 @@ def evaluate_model(
 
     model_file = Path(model_path).resolve()
     if not model_file.exists():
-        candidate_fallbacks = [
-            Path("models/conveyor_qc_yolo26n.pt").resolve(),
-            Path("runs/train/conveyor_yolo26_30/weights/best.pt").resolve(),
-            Path("runs/detect/runs/train/conveyor_yolo26_30/weights/best.pt").resolve(),
-            Path("runs/pilot/pilot_test/weights/best.pt").resolve(),
-            Path("runs/detect/runs/pilot/pilot_test/weights/best.pt").resolve(),
-            Path("runs/pilot/pilot_run/weights/best.pt").resolve(),
-            Path("runs/train/conveyor_yolo26_30/weights/last.pt").resolve(),
-            Path("runs/detect/runs/train/conveyor_yolo26_30/weights/last.pt").resolve(),
-            Path("runs/pilot/pilot_test/weights/last.pt").resolve(),
-            Path("weights/best.pt").resolve()
-        ]
-        if Path("runs").exists():
-            candidate_fallbacks.extend(sorted(Path("runs").rglob("best.pt"), key=lambda p: p.stat().st_mtime, reverse=True))
-            candidate_fallbacks.extend(sorted(Path("runs").rglob("last.pt"), key=lambda p: p.stat().st_mtime, reverse=True))
-        found_fallback = next((p for p in candidate_fallbacks if p.exists()), None)
-        if found_fallback:
-            print(f"[INFO] Không tìm thấy {model_file}, sử dụng checkpoint: {found_fallback}")
-            model_file = found_fallback
-        else:
-            print(f"[LỖI] Không tìm thấy file trọng số: {model_file}")
-            print("💡 Gợi ý: File trọng số (*.pt) không được lưu trên Git theo .gitignore.")
-            print("   Bạn có thể tạo trọng số bằng cách:")
-            print("     1. Chạy notebook notebooks/ConveyorVision_YOLO_Training.ipynb trên Google Colab GPU (~7.7 phút)")
-            print("     2. Hoặc chạy CLI: python src/conveyorvision/train_pilot.py --epochs 30")
-            print("     3. Hoặc tải file weights về và đặt vào models/conveyor_qc_yolo26n.pt")
-            return None
+        print(f"[LỖI] Không tìm thấy checkpoint: {model_file}. Chỉ định đúng file --model.")
+        return None
 
     yaml_file = Path(data_yaml).resolve()
     if not yaml_file.exists():
@@ -225,6 +201,7 @@ def export_report(metrics, model_file: Path, data_yaml: Path, split: str, imgsz:
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "model": {
             "file": model_file.name,
+            "sha256": hashlib.sha256(model_file.read_bytes()).hexdigest(),
             "architecture": "YOLO26n",
             "parameters": int(sum(x.numel() for x in model.model.parameters())),
             "size_mb": round(model_file.stat().st_size / (1024 * 1024), 2),
@@ -240,7 +217,9 @@ def export_report(metrics, model_file: Path, data_yaml: Path, split: str, imgsz:
             "map50_95": round(map50_95 * 100, 1),
         },
         "classes": classes,
-        "confusion_conf": 0.25,
+        # Ngưỡng thực tế phụ thuộc phiên bản và cách Ultralytics tạo ma trận.
+        # Không suy đoán ngưỡng khi validator không cung cấp thông tin.
+        "confusion_conf": None,
         "confusion": confusion,
         "speed_gpu": {
             "device": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,
