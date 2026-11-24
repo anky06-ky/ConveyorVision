@@ -114,7 +114,7 @@ class InspectionWorker:
         self.tracker_config = "bytetrack.yaml"
         self.conf_thresh = 0.45
         self.inference_imgsz = 480  # Mặc định 480 để đạt 20-25 FPS trên CPU
-        self.loop_video = True
+        self.loop_video = False
         self.lost_track_buffer = 30
         self.min_observation_votes = 3
         self.auto_save_csv = True
@@ -201,41 +201,10 @@ class InspectionWorker:
 
     def _resolve_model_file(self, requested_path: str, mode: str) -> Optional[Path]:
         """Xác định model phù hợp với chế độ kiểm tra được chọn."""
-        if mode == "bottle_and_other":
-            candidates = [
-                Path("models/yolo26n.pt").resolve(),
-                Path("yolo26n.pt").resolve(),
-                Path("yolov8n.pt").resolve(),
-                Path("models/yolov8n_pilot_best.pt").resolve(),
-                Path("models/conveyor_qc_yolo26n.pt").resolve(),
-            ]
-            for c in candidates:
-                if c.exists() and c.is_file():
-                    return c
-
         req = Path(requested_path)
-        if req.is_absolute() and req.exists() and req.is_file():
-            return req
-        if req.exists() and req.is_file():
-            return req.resolve()
-
-        direct_cand = Path("models") / req.name
-        if direct_cand.exists() and direct_cand.is_file():
-            return direct_cand.resolve()
-
-        candidate_fallbacks = [
-            Path("models/conveyor_qc_yolo26n.pt").resolve(),
-            Path("models/yolov8n_pilot_best.pt").resolve(),
-            Path("yolo26n.pt").resolve(),
-            Path("yolov8n.pt").resolve(),
-            Path("runs/train/conveyor_yolo26_30/weights/best.pt").resolve(),
-        ]
-        if Path("runs").exists():
-            candidate_fallbacks.extend(sorted(Path("runs").rglob("best.pt"), key=lambda p: p.stat().st_mtime, reverse=True))
-
-        for p in candidate_fallbacks:
-            if p.exists() and p.is_file():
-                return p
+        for candidate in (req, Path("models") / req.name):
+            if candidate.is_file():
+                return candidate.resolve()
         return None
 
     def start(
@@ -246,7 +215,7 @@ class InspectionWorker:
         conf_thresh: float = 0.45,
         tracker_config: str = "bytetrack.yaml",
         imgsz: int = 480,
-        loop_video: bool = True,
+        loop_video: bool = False,
         lost_track_buffer: Optional[int] = None,
         min_observation_votes: Optional[int] = None,
         auto_save_csv: Optional[bool] = None
@@ -265,7 +234,7 @@ class InspectionWorker:
             self.conf_thresh = float(conf_thresh)
             self.tracker_config = tracker_config
             self.inference_imgsz = int(imgsz)
-            self.loop_video = loop_video
+            self.loop_video = False  # Một phiên kiểm định chỉ xử lý một lượt video.
             self.error_message = ""
 
             resolved_model = self._resolve_model_file(model_path, inspection_mode)
@@ -470,6 +439,12 @@ class InspectionWorker:
         last_frame_wall_time = time.time()
         fps_history = []
         is_coco_model = (len(model.names) >= 80) or ("bottle" in model.names.values())
+        if self.inspection_mode == "bottle_inspection" and set(model.names.values()) != {"pass", "defect"}:
+            cap.release()
+            if csv_file:
+                csv_file.close()
+            self._handle_error("LỖI CHECKPOINT", "Chế độ QC yêu cầu mô hình có đúng hai lớp pass và defect.")
+            return
         scene_cut_detector = SceneCutDetector()
 
         try:
@@ -489,13 +464,8 @@ class InspectionWorker:
 
                 ret, frame = cap.read()
                 if not ret:
-                    if not is_webcam and self.loop_video and not self._stop_event.is_set():
-                        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                        ret, frame = cap.read()
-                        if not ret:
-                            break
-                    else:
-                        break
+                    # Không tua lại trong cùng phiên: tránh tính lại các sản phẩm.
+                    break
 
                 self.frame_idx += 1
                 t_start = time.time()
@@ -513,7 +483,7 @@ class InspectionWorker:
                     frame,
                     persist=True,
                     tracker=self.tracker_config,
-                    conf=self.conf_thresh,
+                    conf=min(self.conf_thresh, 0.1),
                     imgsz=self.inference_imgsz,
                     verbose=False
                 )
@@ -538,6 +508,14 @@ class InspectionWorker:
                         conf = float(box.conf[0].item())
                         x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
                         track_id = int(box.id[0].item()) if box.id is not None else -1
+
+                        # Điểm thấp hỗ trợ liên kết ID nhưng không tham gia bỏ phiếu.
+                        if conf < self.conf_thresh:
+                            existing = self.track_history.get(track_id)
+                            if existing is not None:
+                                existing["last_seen_frame"] = self.frame_idx
+                                existing["last_seen_ts"] = curr_ts
+                            continue
 
                         raw_name = model.names.get(cls_id, str(cls_id)).lower()
 
@@ -685,6 +663,7 @@ class InspectionWorker:
                             elif total_obs >= min_votes:
                                 th["state"] = "PASS"
                                 th["logged"] = True
+                                th["logged_status"] = "PASS"
                                 if csv_writer:
                                     csv_writer.writerow([f"{th['last_seen_ts']:.2f}", tid, 0, "Chai đạt chuẩn", f"{th['max_conf']:.2f}", "PASS"])
                                     csv_file.flush()
@@ -784,7 +763,7 @@ class InspectionWorker:
                                 th["logged"] = True
                                 if csv_writer:
                                     csv_writer.writerow([f"{th['last_seen_ts']:.2f}", tid, 2, th["display_name"], f"{th['max_conf']:.2f}", "OTHER"])
-                            elif th["defect_votes"] >= 2 or (th["defect_votes"] >= 1 and th["category"] == "BOTTLE_DEFECT"):
+                            elif th["defect_votes"] >= 2:
                                 th["state"] = "DEFECT"
                                 th["logged"] = True
                                 if csv_writer:
@@ -792,6 +771,7 @@ class InspectionWorker:
                             elif total_obs >= min_votes:
                                 th["state"] = "PASS"
                                 th["logged"] = True
+                                th["logged_status"] = "PASS"
                                 if csv_writer:
                                     csv_writer.writerow([f"{th['last_seen_ts']:.2f}", tid, 0, "Chai đạt chuẩn", f"{th['max_conf']:.2f}", "PASS"])
                             else:
